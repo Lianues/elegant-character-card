@@ -64,14 +64,16 @@ export const LorebookEntrySchema = z.object({
     .default("beforeChar"),
   order: IntegerSchema.default(100),
   depth: IntegerSchema.default(4),
+  path_chain: z.string().default(""),
   other: z.record(z.unknown()).default({}),
 });
 
 /**
- * 新统一格式世界书容器（字段名 world_hook）。
+ * 新统一格式世界书容器（字段名 world_book）。
  */
-export const WorldHookSchema = z.object({
+export const WorldBookSchema = z.object({
   entries: z.array(LorebookEntrySchema).default([]),
+  folder_paths: z.array(z.string()).default([]),
   name: z.string().nullable().optional().default(null),
   description: z.string().nullable().optional().default(null),
   scan_depth: IntegerSchema.nullable().optional().default(null),
@@ -116,7 +118,7 @@ export const CharacterCardV2DataSchema = z.object({
 
 /**
  * Character Card V3 data（新格式）
- * - world_hook 替代 character_book
+ * - world_book 替代 character_book
  * - message = first_mes + alternate_greetings（合并）
  */
 export const CharacterCardV3DataSchema = z.object({
@@ -133,7 +135,7 @@ export const CharacterCardV3DataSchema = z.object({
   personality: z.string(),
   scenario: z.string(),
   creator_notes: z.string().default(""),
-  world_hook: WorldHookSchema.nullable().optional().default(null),
+  world_book: WorldBookSchema.nullable().optional().default(null),
 
   assets: z.array(AssetSchema).nullable().optional().default(null),
   nickname: z.string().nullable().optional().default(null),
@@ -165,7 +167,7 @@ export const CharacterCardV3Schema = z.object({
 export type Asset = z.infer<typeof AssetSchema>;
 export type LegacyLorebookEntry = z.infer<typeof LegacyLorebookEntrySchema>;
 export type LorebookEntry = z.infer<typeof LorebookEntrySchema>;
-export type WorldHook = z.infer<typeof WorldHookSchema>;
+export type WorldBook = z.infer<typeof WorldBookSchema>;
 export type CharacterCardV2Data = z.infer<typeof CharacterCardV2DataSchema>;
 export type CharacterCardV3Data = z.infer<typeof CharacterCardV3DataSchema>;
 export type CharacterCardV2 = z.infer<typeof CharacterCardV2Schema>;

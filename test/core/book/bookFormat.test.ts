@@ -7,7 +7,7 @@ import {
 } from "../../../src/core/book/bookFormat.js";
 
 describe("book format normalize", () => {
-  it("应将旧酒馆字段迁移到新字段（character_book->world_hook, alternate_greetings->message）", () => {
+  it("应将旧酒馆字段迁移到新字段（character_book->world_book, alternate_greetings->message）", () => {
     const legacyPayload = {
       spec: "chara_card_v3",
       spec_version: "3.0",
@@ -55,7 +55,7 @@ describe("book format normalize", () => {
     expect(normalized.data.character_book).toBeUndefined();
     expect(normalized.data.first_mes).toBeUndefined();
 
-    const entry = normalized.data.world_hook.entries[0];
+    const entry = normalized.data.world_book.entries[0];
     expect(entry.index).toBe(3);
     expect(entry.name).toBe("城市");
     expect(entry.key).toEqual(["kw1"]);
@@ -80,7 +80,7 @@ describe("book format normalize", () => {
         message: ["m1", "m2"],
         personality: "kind",
         scenario: "city",
-        world_hook: {
+        world_book: {
           entries: [
             {
               index: 2,
@@ -115,7 +115,7 @@ describe("book format normalize", () => {
     const formatted = formatBookForReadableOutput(cleanPayload);
     const parsed = CharacterCardV3Schema.parse(formatted);
 
-    const entry = parsed.data.world_hook?.entries[0];
+    const entry = parsed.data.world_book?.entries[0];
     expect(entry?.index).toBe(2);
     expect(entry?.name).toBe("设定A");
     expect(entry?.key).toEqual(["k1"]);

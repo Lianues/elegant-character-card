@@ -22,7 +22,7 @@ export async function runValidateCommand(input: string): Promise<void> {
   console.log(`- 角色名: ${card.data.name}`);
   console.log(`- 创作者: ${card.data.creator}`);
   console.log(`- 规范: ${card.spec} v${card.spec_version}`);
-  console.log(`- 设定条目数: ${card.data.world_hook?.entries.length ?? 0}`);
+  console.log(`- 设定条目数: ${card.data.world_book?.entries.length ?? 0}`);
   console.log(`- 资源数: ${card.data.assets?.length ?? 0}`);
   if (upgradedFromV2) {
     console.log("- 兼容提示: 输入为 V2，已按 V3 规范完成校验");

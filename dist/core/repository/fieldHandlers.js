@@ -20,6 +20,87 @@ export function sanitizeFilename(name) {
     const sanitized = name.replace(illegalChars, "_").replace(/^[ _.]+|[ _.]+$/g, "");
     return sanitized || "unnamed";
 }
+function normalizePathChain(rawPath) {
+    if (typeof rawPath !== "string") {
+        return "";
+    }
+    const segments = rawPath
+        .split(/[\\/]/)
+        .map((segment) => segment.trim())
+        .filter((segment) => segment.length > 0)
+        .map((segment) => sanitizeFilename(segment));
+    return segments.join("/");
+}
+function expandPathWithParents(pathChain) {
+    const normalized = normalizePathChain(pathChain);
+    if (!normalized) {
+        return [];
+    }
+    const segments = normalized.split("/");
+    const result = [];
+    for (let i = 1; i <= segments.length; i += 1) {
+        result.push(segments.slice(0, i).join("/"));
+    }
+    return result;
+}
+function dedupeAndSortPathChains(paths) {
+    const unique = new Set();
+    for (const pathChain of paths) {
+        for (const expanded of expandPathWithParents(pathChain)) {
+            unique.add(expanded);
+        }
+    }
+    return Array.from(unique).sort((a, b) => a.localeCompare(b, "zh-CN", {
+        numeric: true,
+        sensitivity: "base",
+    }));
+}
+function isWorldBookEntriesContext(fieldName, valueType, config) {
+    return (valueType === "dict" && fieldName === "entries" && config.split_content_to_md === true);
+}
+async function listRelativeFilesRecursively(rootPath) {
+    const files = [];
+    async function walk(currentPath) {
+        const entries = await readdir(currentPath, { withFileTypes: true });
+        for (const entry of entries) {
+            const absolutePath = path.join(currentPath, entry.name);
+            if (entry.isDirectory()) {
+                await walk(absolutePath);
+                continue;
+            }
+            if (entry.isFile()) {
+                const relativePath = path.relative(rootPath, absolutePath).replaceAll("\\", "/");
+                files.push(relativePath);
+            }
+        }
+    }
+    await walk(rootPath);
+    return files;
+}
+async function listRelativeDirectoriesRecursively(rootPath) {
+    const directories = [];
+    async function walk(currentPath) {
+        const entries = await readdir(currentPath, { withFileTypes: true });
+        for (const entry of entries) {
+            if (!entry.isDirectory()) {
+                continue;
+            }
+            const absolutePath = path.join(currentPath, entry.name);
+            const relativePath = path.relative(rootPath, absolutePath).replaceAll("\\", "/");
+            const normalized = normalizePathChain(relativePath);
+            if (normalized) {
+                directories.push(normalized);
+            }
+            await walk(absolutePath);
+        }
+    }
+    await walk(rootPath);
+    return directories;
+}
+function toPosixRelativePath(rootPath, targetPath) {
+    const relative = path.relative(rootPath, targetPath).replaceAll("\\", "/");
+    return relative === "." ? "" : normalizePathChain(relative);
+}
 async function yamlSafeDump(data, filePath) {
     await ensureDir(filePath);
     const yamlText = YAML.stringify(data, {
@@ -126,10 +207,12 @@ export async function dumpArrayField(items, config, basePath, fieldName) {
     }
     const fullPath = path.join(basePath, fieldName);
     const valueType = config.value_type ?? "string";
+    const isWorldBookEntries = isWorldBookEntriesContext(fieldName, valueType, config);
     const zfillLength = Math.min(items.length, 3);
     if (config.file_pattern) {
         for (let idx = 0; idx < items.length; idx += 1) {
-            const item = items[idx];
+            const sourceItem = items[idx];
+            const item = isRecord(sourceItem) ? { ...sourceItem } : sourceItem;
             let filename = config.file_pattern;
             if (filename.includes("{idx}")) {
                 const indexText = fieldName === "message"
@@ -142,17 +225,29 @@ export async function dumpArrayField(items, config, basePath, fieldName) {
                     extractFilenameFromPattern(filename, item) ??
                         (valueType === "dict" ? `${idx + 1}.yaml` : `${idx + 1}.md`);
             }
-            const outputValue = await maybeSplitContentToMarkdown(item, config, valueType, fullPath, filename);
-            const filePath = path.join(fullPath, filename);
+            const pathChain = isWorldBookEntries && isRecord(item) ? normalizePathChain(item.path_chain) : "";
+            if (isWorldBookEntries && isRecord(item)) {
+                delete item.path_chain;
+            }
+            const targetDir = pathChain ? path.join(fullPath, ...pathChain.split("/")) : fullPath;
+            const outputValue = await maybeSplitContentToMarkdown(item, config, valueType, targetDir, filename);
+            const filePath = path.join(targetDir, filename);
             await writeValue(outputValue, filePath, valueType);
         }
         return;
     }
     for (let idx = 0; idx < items.length; idx += 1) {
         const fallbackExt = valueType === "dict" ? "yaml" : "md";
+        const sourceItem = items[idx];
+        const item = isRecord(sourceItem) ? { ...sourceItem } : sourceItem;
         const indexText = fieldName === "message" ? String(idx) : String(idx + 1);
-        const filePath = path.join(fullPath, `${indexText}.${fallbackExt}`);
-        await writeValue(items[idx], filePath, valueType);
+        const pathChain = isWorldBookEntries && isRecord(item) ? normalizePathChain(item.path_chain) : "";
+        if (isWorldBookEntries && isRecord(item)) {
+            delete item.path_chain;
+        }
+        const targetDir = pathChain ? path.join(fullPath, ...pathChain.split("/")) : fullPath;
+        const filePath = path.join(targetDir, `${indexText}.${fallbackExt}`);
+        await writeValue(item, filePath, valueType);
     }
 }
 export async function dumpDictField(data, config, basePath, fieldName) {
@@ -178,6 +273,18 @@ export async function dumpNestedField(data, config, basePath, fieldName) {
     const fullPath = path.join(basePath, fieldName);
     const fieldsConfig = config.fields ?? {};
     const modifiedData = { ...data };
+    const worldBookFolderPaths = fieldName === "world_book"
+        ? dedupeAndSortPathChains([
+            ...(Array.isArray(modifiedData.folder_paths)
+                ? modifiedData.folder_paths.map((item) => String(item))
+                : []),
+            ...(Array.isArray(modifiedData.entries)
+                ? modifiedData.entries
+                    .filter((entry) => isRecord(entry))
+                    .map((entry) => String(entry.path_chain ?? ""))
+                : []),
+        ])
+        : [];
     for (const [subFieldName, subFieldConfig] of Object.entries(fieldsConfig)) {
         if (!subFieldConfig.enabled || !(subFieldName in modifiedData)) {
             continue;
@@ -201,6 +308,14 @@ export async function dumpNestedField(data, config, basePath, fieldName) {
             await dumpStringField(subFieldData, fullPath, filename);
             modifiedData[subFieldName] = path.join(fullPath, filename);
         }
+    }
+    if (fieldName === "world_book") {
+        const entriesPath = path.join(fullPath, "entries");
+        await mkdir(entriesPath, { recursive: true });
+        for (const folderPath of worldBookFolderPaths) {
+            await mkdir(path.join(entriesPath, ...folderPath.split("/")), { recursive: true });
+        }
+        delete modifiedData.folder_paths;
     }
     if (Object.keys(modifiedData).length > 0) {
         await yamlSafeDump(modifiedData, path.join(fullPath, "_metadata.yaml"));
@@ -244,9 +359,12 @@ export async function loadArrayField(config, basePath, fieldName) {
         return [];
     }
     const valueType = config.value_type ?? "string";
-    const entries = (await readdir(fullPath, { withFileTypes: true }))
-        .filter((entry) => entry.isFile())
-        .map((entry) => entry.name)
+    const isWorldBookEntries = isWorldBookEntriesContext(fieldName, valueType, config);
+    const entries = (isWorldBookEntries
+        ? await listRelativeFilesRecursively(fullPath)
+        : (await readdir(fullPath, { withFileTypes: true }))
+            .filter((entry) => entry.isFile())
+            .map((entry) => entry.name))
         .filter((filename) => {
         if (valueType !== "dict") {
             return true;
@@ -263,11 +381,23 @@ export async function loadArrayField(config, basePath, fieldName) {
     }
     const items = [];
     for (const filename of entries) {
-        const rawItem = await readValue(path.join(fullPath, filename), valueType);
-        const item = await maybeHydrateMarkdownContent(rawItem, config, valueType, fullPath, filename);
+        const absoluteFilePath = path.join(fullPath, filename);
+        const yamlDirPath = path.dirname(absoluteFilePath);
+        const yamlFilename = path.basename(filename);
+        const rawItem = await readValue(absoluteFilePath, valueType);
+        let item = await maybeHydrateMarkdownContent(rawItem, config, valueType, yamlDirPath, yamlFilename);
+        if (isWorldBookEntries && isRecord(item)) {
+            item = {
+                ...item,
+                path_chain: toPosixRelativePath(fullPath, yamlDirPath),
+            };
+        }
         if (item || valueType === "string") {
             items.push(item);
         }
+    }
+    if (isWorldBookEntries) {
+        items.sort((a, b) => (isRecord(a) ? Number(a.index ?? 0) : 0) - (isRecord(b) ? Number(b.index ?? 0) : 0));
     }
     return items;
 }
@@ -338,6 +468,18 @@ export async function loadNestedField(config, basePath, fieldName) {
             const filename = subFieldConfig.filename ?? `${subFieldName}.md`;
             result[subFieldName] = await loadStringField(fullPath, filename);
         }
+    }
+    if (fieldName === "world_book") {
+        const entriesPath = path.join(fullPath, "entries");
+        const folderPathsFromDirs = existsSync(entriesPath)
+            ? dedupeAndSortPathChains(await listRelativeDirectoriesRecursively(entriesPath))
+            : [];
+        const folderPathsFromEntries = Array.isArray(result.entries)
+            ? dedupeAndSortPathChains(result.entries
+                .filter((entry) => isRecord(entry))
+                .map((entry) => String(entry.path_chain ?? "")))
+            : [];
+        result.folder_paths = dedupeAndSortPathChains([...folderPathsFromDirs, ...folderPathsFromEntries]);
     }
     return result;
 }

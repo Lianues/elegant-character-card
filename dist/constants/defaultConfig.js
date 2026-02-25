@@ -90,7 +90,7 @@ export const DEFAULT_CONFIG = {
                     },
                 },
             },
-            world_hook: {
+            world_book: {
                 enabled: true,
                 type: "nested",
                 fields: {

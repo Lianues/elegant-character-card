@@ -88,7 +88,7 @@ describe("repositorize + rebuildCard", () => {
             },
           ],
         },
-        world_hook: {
+        world_book: {
           name: "Lorebook",
           entries: [
             {
@@ -108,9 +108,31 @@ describe("repositorize + rebuildCard", () => {
               position: "beforeChar",
               order: 1,
               depth: 4,
+              path_chain: "设定/组织",
+              other: {},
+            },
+            {
+              index: 8,
+              name: "rule",
+              content: "规则条目",
+              enabled: true,
+              activationMode: "always",
+              key: [],
+              secondaryKey: [],
+              selectiveLogic: "andAny",
+              role: null,
+              caseSensitive: null,
+              excludeRecursion: false,
+              preventRecursion: false,
+              probability: 100,
+              position: "beforeChar",
+              order: 2,
+              depth: 4,
+              path_chain: "",
               other: {},
             },
           ],
+          folder_paths: ["人物", "设定", "设定/空目录", "设定/组织"],
         },
       },
     });
@@ -134,14 +156,19 @@ describe("repositorize + rebuildCard", () => {
     );
     expect(regexScripts.some((name) => name.endsWith("_regex-one.yaml"))).toBe(true);
     expect(
-      existsSync(path.join(repoPath, "world_hook", "entries", "7_city.yaml")),
+      existsSync(path.join(repoPath, "world_book", "entries", "设定", "组织", "7_city.yaml")),
     ).toBe(true);
     expect(
-      existsSync(path.join(repoPath, "world_hook", "entries", "7_city.md")),
+      existsSync(path.join(repoPath, "world_book", "entries", "设定", "组织", "7_city.md")),
     ).toBe(true);
+    expect(existsSync(path.join(repoPath, "world_book", "entries", "8_rule.yaml"))).toBe(true);
+    expect(
+      existsSync(path.join(repoPath, "world_book", "entries", "人物")),
+    ).toBe(true);
+    expect(existsSync(path.join(repoPath, "world_book", "entries", "设定", "空目录"))).toBe(true);
 
     const entryYaml = await readFile(
-      path.join(repoPath, "world_hook", "entries", "7_city.yaml"),
+      path.join(repoPath, "world_book", "entries", "设定", "组织", "7_city.yaml"),
       "utf-8",
     );
     const entryObject = YAML.parse(entryYaml) as Record<string, unknown>;

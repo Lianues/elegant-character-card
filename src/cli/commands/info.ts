@@ -57,10 +57,10 @@ export async function runInfoCommand(input: string): Promise<void> {
   console.log(`- message: ${data.message.length}`);
   console.log(`- group_only_greetings: ${data.group_only_greetings.length}`);
 
-  if (data.world_hook) {
-    console.log("\n📚 World Hook:");
-    console.log(`- name: ${data.world_hook.name ?? "(未命名)"}`);
-    console.log(`- entries: ${data.world_hook.entries.length}`);
+  if (data.world_book) {
+    console.log("\n📚 World Book:");
+    console.log(`- name: ${data.world_book.name ?? "(未命名)"}`);
+    console.log(`- entries: ${data.world_book.entries.length}`);
   }
 
   if (data.assets && data.assets.length > 0) {

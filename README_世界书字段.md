@@ -1,10 +1,10 @@
 # 世界书字段说明（优美角色卡统一格式）
 
-> 适用范围：`角色目录/world_hook/entries/*.yaml`（以及同名 `.md`）
+> 适用范围：`角色目录/world_book/entries/*.yaml`（以及同名 `.md`）
 >
 > 说明：本项目已统一为**新格式**（参考 `st-api-wrapper` 的 `worldBook.get` 友好结构）。
 > 旧酒馆字段（如 `keys/comment/insertion_order`）不再作为主格式写出。
-> 同时角色卡字段已统一：`character_book -> world_hook`，`alternate_greetings -> message`。
+> 同时角色卡字段已统一：`character_book -> world_book`，`alternate_greetings -> message`。
 
 ---
 
@@ -12,13 +12,13 @@
 
 每个世界书条目由两部分组成：
 
-- `entries/{index}_{name}.yaml`：结构化字段
-- `entries/{index}_{name}.md`：条目正文（原 content）
+- `entries/{path_chain}/{index}_{name}.yaml`：结构化字段
+- `entries/{path_chain}/{index}_{name}.md`：条目正文（原 content）
 
 例如：
 
-- `7_city.yaml`
-- `7_city.md`
+- `设定/组织/7_city.yaml`
+- `设定/组织/7_city.md`
 
 > 注意：`yaml` 中**不再保存** `content` 字段，正文统一放在同名 `.md`。
 
@@ -43,6 +43,7 @@
 | `position` | 插入位置 | `string` | 是 | `beforeChar` / `afterChar` / `beforeEm` / `afterEm` / `beforeAn` / `afterAn` / `fixed` / `outlet` | `beforeChar` | 提示注入位置 | `"beforeChar"` |
 | `order` | 插入顺序 | `number`(int) | 是 | 整数 | `100` | 同位置下排序 | `52` |
 | `depth` | 固定深度 | `number`(int) | 是 | 整数 | `4` | 通常用于 `fixed` 位置 | `4` |
+| `path_chain` | 条目路径 | `string` | 是 | 路径字符串（`/` 分隔） | `""` | 条目所在目录链 | `"设定/组织"` |
 | `other` | 其他扩展信息 | `object` | 是 | 任意对象 | `{}` | 兜底保留字段 | 见下文 |
 
 ---
@@ -126,6 +127,7 @@ probability: 100
 position: beforeChar
 order: 1
 depth: 4
+path_chain: 设定/组织
 other:
   use_regex: false
   selective: null
@@ -143,13 +145,14 @@ other:
 
 ---
 
-## 6. Book 容器字段（`world_hook`）
+## 6. Book 容器字段（`world_book`）
 
-除了 `entries` 外，`world_hook` 本身还可包含：
+除了 `entries` 外，`world_book` 本身还可包含：
 
 | 字段 | 中文名称 | 类型 | 说明 |
 |---|---|---|---|
 | `name` | 书名 | `string \| null` | 世界书名称 |
+| `folder_paths` | 文件夹路径列表 | `string[]` | 允许空文件夹写入（如 `"设定/空目录"`） |
 | `description` | 说明 | `string \| null` | 世界书描述 |
 | `scan_depth` | 扫描深度 | `number \| null` | 最近消息扫描深度 |
 | `token_budget` | token 预算 | `number \| null` | 预算限制 |

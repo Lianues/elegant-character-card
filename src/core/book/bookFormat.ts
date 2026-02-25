@@ -61,13 +61,17 @@ function asNumber(value: unknown, fallback: number): number {
 }
 
 function resolvePositionString(position: unknown, extensions: AnyRecord): PositionValue {
-  const extPos = extensions.position;
+  const extPos = extensions.position ?? position;
   if (typeof extPos === "number" && extPos in POSITION_NUM_TO_STRING) {
     return POSITION_NUM_TO_STRING[extPos];
   }
 
   if (typeof position === "string") {
     switch (position) {
+      case "beforeChar":
+        return "beforeChar";
+      case "afterChar":
+        return "afterChar";
       case "before_char":
         return "beforeChar";
       case "after_char":
@@ -92,8 +96,8 @@ function resolveActivationMode(constant: unknown, extensions: AnyRecord): Activa
   return "keyword";
 }
 
-function resolveSelectiveLogic(extensions: AnyRecord): SelectiveLogic {
-  const raw = extensions.selectiveLogic ?? extensions.selective_logic;
+function resolveSelectiveLogic(extensions: AnyRecord, fallbackRaw?: unknown): SelectiveLogic {
+  const raw = extensions.selectiveLogic ?? extensions.selective_logic ?? fallbackRaw;
 
   if (typeof raw === "number" && raw in SELECTIVE_LOGIC_NUM_TO_STRING) {
     return SELECTIVE_LOGIC_NUM_TO_STRING[raw];
@@ -114,7 +118,7 @@ function legacyBookEntryToCleanEntry(entry: AnyRecord): AnyRecord {
   const extensions = isRecord(entry.extensions) ? entry.extensions : {};
   const position = resolvePositionString(entry.position, extensions);
   const activationMode = resolveActivationMode(entry.constant, extensions);
-  const selectiveLogic = resolveSelectiveLogic(extensions);
+  const selectiveLogic = resolveSelectiveLogic(extensions, entry.selectiveLogic);
 
   const roleRaw = extensions.role;
   const role =
@@ -139,22 +143,23 @@ function legacyBookEntryToCleanEntry(entry: AnyRecord): AnyRecord {
   };
 
   return {
-    index: asNumber(entry.id, 0),
-    name: String(entry.comment ?? ""),
+    index: asNumber(entry.id ?? entry.uid, 0),
+    name: String(entry.comment ?? entry.name ?? ""),
     content: String(entry.content ?? ""),
-    enabled: entry.enabled !== false,
+    enabled: entry.enabled !== false && entry.disable !== true,
     activationMode,
-    key: asStringArray(entry.keys),
-    secondaryKey: asStringArray(entry.secondary_keys),
+    key: asStringArray(entry.keys ?? entry.key),
+    secondaryKey: asStringArray(entry.secondary_keys ?? entry.keysecondary),
     selectiveLogic,
     role,
     caseSensitive,
     excludeRecursion: Boolean(extensions.exclude_recursion ?? extensions.excludeRecursion),
     preventRecursion: Boolean(extensions.prevent_recursion ?? extensions.preventRecursion),
-    probability: asNumber(extensions.probability, 100),
+    probability: asNumber(extensions.probability ?? entry.probability, 100),
     position,
-    order: asNumber(entry.insertion_order, 100),
-    depth: asNumber(extensions.depth, 4),
+    order: asNumber(entry.insertion_order ?? entry.order, 100),
+    depth: asNumber(extensions.depth ?? entry.depth, 4),
+    path_chain: String(entry.path_chain ?? ""),
     other,
   };
 }
@@ -175,7 +180,7 @@ function normalizeBookEntries(entries: unknown): unknown {
 
 /**
  * 将 payload 中旧字段统一迁移到新字段：
- * - data.character_book -> data.world_hook
+ * - data.character_book -> data.world_book
  * - data.first_mes + data.alternate_greetings -> data.message
  * - 删除 data.first_mes / data.alternate_greetings / data.character_book
  */
@@ -186,8 +191,8 @@ export function normalizeLegacyBookInPayload(payload: unknown): unknown {
 
   const data = payload.data as AnyRecord;
 
-  const worldHookRaw = isRecord(data.world_hook)
-    ? (data.world_hook as AnyRecord)
+  const worldBookRaw = isRecord(data.world_book)
+    ? (data.world_book as AnyRecord)
     : isRecord(data.character_book)
       ? (data.character_book as AnyRecord)
       : null;
@@ -196,10 +201,10 @@ export function normalizeLegacyBookInPayload(payload: unknown): unknown {
     ...data,
   };
 
-  if (worldHookRaw) {
-    normalizedData.world_hook = {
-      ...worldHookRaw,
-      entries: normalizeBookEntries(worldHookRaw.entries),
+  if (worldBookRaw) {
+    normalizedData.world_book = {
+      ...worldBookRaw,
+      entries: normalizeBookEntries(worldBookRaw.entries),
     };
   }
 

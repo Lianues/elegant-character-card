@@ -92,7 +92,7 @@ export const DEFAULT_CONFIG: AppConfig = {
           },
         },
       },
-      world_hook: {
+      world_book: {
         enabled: true,
         type: "nested",
         fields: {
