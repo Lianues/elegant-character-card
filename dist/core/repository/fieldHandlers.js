@@ -20,6 +20,26 @@ export function sanitizeFilename(name) {
     const sanitized = name.replace(illegalChars, "_").replace(/^[ _.]+|[ _.]+$/g, "");
     return sanitized || "unnamed";
 }
+/**
+ * 移除原版角色卡里不存在的冗余字段：
+ *  - null / undefined：V3 schema 给可选字段填的默认值（如 nickname/source/...）
+ *  - 空对象 {}：未使用的容器（如 extensions:{}）
+ * 保留：空字符串 ""、空数组 []（这些在原版酒馆卡里通常是真实存在的）
+ */
+export function stripDefaultEmptyFields(data) {
+    const result = {};
+    for (const [key, value] of Object.entries(data)) {
+        if (value === null || value === undefined)
+            continue;
+        if (typeof value === "object" &&
+            !Array.isArray(value) &&
+            Object.keys(value).length === 0) {
+            continue;
+        }
+        result[key] = value;
+    }
+    return result;
+}
 function normalizePathChain(rawPath) {
     if (typeof rawPath !== "string") {
         return "";
@@ -317,8 +337,10 @@ export async function dumpNestedField(data, config, basePath, fieldName) {
         }
         delete modifiedData.folder_paths;
     }
-    if (Object.keys(modifiedData).length > 0) {
-        await yamlSafeDump(modifiedData, path.join(fullPath, "_metadata.yaml"));
+    // 写入前剔除原版酒馆卡里不存在的冗余字段（null / 空对象）
+    const cleanedData = stripDefaultEmptyFields(modifiedData);
+    if (Object.keys(cleanedData).length > 0) {
+        await yamlSafeDump(cleanedData, path.join(fullPath, "_metadata.yaml"));
     }
 }
 export async function handleField(fieldData, fieldType, config, basePath, fieldName, data) {

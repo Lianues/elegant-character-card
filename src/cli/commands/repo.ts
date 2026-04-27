@@ -24,12 +24,21 @@ export async function runRepoCommand(input: string, options: RepoOptions): Promi
 
   const { card, upgradedFromV2 } = await loadCardFromFile(input);
   const configPath = options.config ?? "config.yaml";
-  const repoPath = await repositorize(card, configPath);
+
+  // PNG 输入时把原图传给 repositorize 以便提取/清洗为仓库根目录的裸图
+  const sourceImagePath = ext === ".png" ? input : undefined;
+  const repoPath = await repositorize(card, configPath, sourceImagePath);
 
   console.log("✅ 仓库化成功");
   console.log(`- 角色名: ${card.data.name}`);
   console.log(`- 仓库目录: ${repoPath}`);
   console.log(`- 配置文件: ${configPath}`);
+  console.log(`- 规范文档: ${path.join(repoPath, "docs")}（已自动复制项目内置 docs/）`);
+  if (sourceImagePath) {
+    console.log(`- 默认底图: ${path.join(repoPath, "character.png")}（已剥离 metadata chunk）`);
+  } else {
+    console.log("- 默认底图: 无（输入是 JSON，image_path 留空）");
+  }
   if (upgradedFromV2) {
     console.log("- 兼容提示: 输入为 V2，已自动升级为 V3 再仓库化");
   }

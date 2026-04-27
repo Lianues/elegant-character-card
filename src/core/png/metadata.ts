@@ -112,3 +112,17 @@ export async function extractCardMetadata(imagePath: string): Promise<string | n
 
   return null;
 }
+
+/**
+ * 复制 PNG，同时剥离所有角色卡 metadata chunk（ccv3/chara），输出一张"裸图"。
+ */
+export async function stripCardMetadataFromPng(
+  inputPath: string,
+  outputPath: string,
+): Promise<void> {
+  const pngBuffer = await readFile(inputPath);
+  const chunks = extractChunks(new Uint8Array(pngBuffer));
+  const cleanedChunks = withoutCardMetadataChunks(chunks);
+  const nextPngBuffer = Buffer.from(encodeChunks(cleanedChunks));
+  await writeFile(outputPath, nextPngBuffer);
+}

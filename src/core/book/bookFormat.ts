@@ -133,14 +133,39 @@ function legacyBookEntryToCleanEntry(entry: AnyRecord): AnyRecord {
       ? (extensions.case_sensitive as boolean | null | undefined) ?? null
       : (entry.case_sensitive as boolean | null);
 
+  // 过滤 extensions：剔除所有已经被 clean 字段表示的键，避免 YAML 中出现"同一信息两份"
+  // 同时也不再保留 position_raw（可由 clean.position 完全反推）
+  const REDUNDANT_EXT_KEYS = new Set([
+    "position",
+    "depth",
+    "probability",
+    "selectiveLogic",
+    "selective_logic",
+    "role",
+    "exclude_recursion",
+    "excludeRecursion",
+    "prevent_recursion",
+    "preventRecursion",
+    "vectorized",
+    "case_sensitive",
+    "caseSensitive",
+  ]);
+  const residualExtensions: AnyRecord = {};
+  for (const [key, value] of Object.entries(extensions)) {
+    if (!REDUNDANT_EXT_KEYS.has(key)) {
+      residualExtensions[key] = value;
+    }
+  }
+
   const other: AnyRecord = {
     use_regex: entry.use_regex ?? false,
     selective: entry.selective ?? null,
     name: entry.name ?? null,
     priority: entry.priority ?? null,
-    position_raw: entry.position ?? null,
-    extensions,
   };
+  if (Object.keys(residualExtensions).length > 0) {
+    other.extensions = residualExtensions;
+  }
 
   return {
     index: asNumber(entry.id ?? entry.uid, 0),

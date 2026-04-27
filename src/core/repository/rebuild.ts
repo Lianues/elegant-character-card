@@ -18,6 +18,38 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 }
 
 /**
+ * 读取仓库根 `_metadata.yaml` 中的 `data.image_path`。
+ *
+ * @returns
+ *   - `{ raw: null, resolved: null }` 字段未设置或为空字符串
+ *   - `{ raw: <原值>, resolved: <绝对路径> }` 字段已设置（无论文件是否存在）
+ *
+ * 由调用方决定"未设置时回落到默认图"vs"已设置但文件缺失则报错"。
+ */
+export async function getRepoImagePath(
+  basePath: string,
+): Promise<{ raw: string | null; resolved: string | null }> {
+  const mainMetadataPath = path.join(basePath, "_metadata.yaml");
+  if (!existsSync(mainMetadataPath)) {
+    return { raw: null, resolved: null };
+  }
+
+  const metadataContent = await readFile(mainMetadataPath, "utf-8");
+  const metadata = YAML.parse(metadataContent);
+  if (!isRecord(metadata) || !isRecord(metadata.data)) {
+    return { raw: null, resolved: null };
+  }
+
+  const value = (metadata.data as Record<string, unknown>).image_path;
+  if (typeof value !== "string" || value.length === 0) {
+    return { raw: null, resolved: null };
+  }
+
+  const resolved = path.isAbsolute(value) ? value : path.join(basePath, value);
+  return { raw: value, resolved };
+}
+
+/**
  * 从仓库结构重建角色卡。
  */
 export async function rebuildCard(

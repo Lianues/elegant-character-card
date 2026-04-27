@@ -1,20 +1,31 @@
 {
   "name": "elegant-character-card",
   "version": "0.1.0",
-  "description": "Elegant Character Card CLI-only toolkit",
+  "description": "Elegant Character Card CLI-only toolkit (SillyTavern compatible)",
   "license": "MIT",
   "type": "module",
   "bin": {
-    "elegant-character-card": "dist/cli/index.js"
+    "elegant-character-card": "dist/cli/index.js",
+    "ecc": "dist/cli/index.js"
   },
+  "files": [
+    "dist",
+    "src/default.png",
+    "src/docs",
+    "README.md",
+    "LICENSE"
+  ],
   "engines": {
     "node": ">=20.0.0"
   },
   "scripts": {
-    "build": "tsc -p tsconfig.json",
+    "build": "tsc -p tsconfig.json && node scripts/copy-assets.cjs",
     "dev": "tsx src/cli/index.ts",
     "start": "node dist/cli/index.js",
-    "test": "vitest run"
+    "test": "vitest run",
+    "prepublishOnly": "npm run build",
+    "link": "npm run build && npm link",
+    "unlink": "npm unlink -g elegant-character-card"
   },
   "dependencies": {
     "commander": "^12.1.0",

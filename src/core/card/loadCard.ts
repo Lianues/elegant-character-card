@@ -50,8 +50,12 @@ export async function loadCardFromJson(jsonPath: string): Promise<LoadedCardResu
   }
 
   const text = await readFile(jsonPath, "utf-8");
-  const payload = parseJson(text, jsonPath);
-  const { card, upgradedFromV2 } = parseV3OrUpgradeFromV2(payload);
+  const rawPayload = parseJson(text, jsonPath);
+  // 与 loadCardFromPng 保持一致：先把旧字段名（character_book / first_mes /
+  // alternate_greetings）归一化到 V3 字段，再交给 schema 解析。否则
+  // spec=chara_card_v3 但 data 仍用旧字段名时，V3 解析会"成功"但静默丢弃数据。
+  const normalizedPayload = normalizeLegacyBookInPayload(rawPayload);
+  const { card, upgradedFromV2 } = parseV3OrUpgradeFromV2(normalizedPayload);
 
   return {
     card,
