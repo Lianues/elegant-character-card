@@ -6,6 +6,7 @@ import { Command } from "commander";
 
 import { formatBookForReadableOutput } from "../../core/book/bookFormat.js";
 import { loadCardFromPng } from "../../core/card/loadCard.js";
+import { withContributorsHeader } from "../../core/transforms/contributors.js";
 
 export interface ExtractOptions {
   output?: string;
@@ -26,7 +27,7 @@ export async function runExtractCommand(
   console.log(`📤 正在提取: ${input}`);
 
   const { card, upgradedFromV2 } = await loadCardFromPng(input);
-  const outputPayload = formatBookForReadableOutput(card);
+  const outputPayload = withContributorsHeader(formatBookForReadableOutput(card));
 
   const outputPath = options.output ?? `${card.data.name || path.parse(input).name}.json`;
   await writeFile(outputPath, `${JSON.stringify(outputPayload, null, 2)}\n`, "utf-8");

@@ -13,6 +13,7 @@ import {
   sanitizeFilename,
   stripDefaultEmptyFields,
 } from "./fieldHandlers.js";
+import { transformExtensionsRegexScriptsToClean } from "../transforms/regexScriptTransforms.js";
 
 /** 仓库根目录中默认裸图文件名 */
 export const REPO_DEFAULT_IMAGE_FILENAME = "character.png";
@@ -83,16 +84,23 @@ export async function repositorize(
   const metadata = structuredClone(card) as Record<string, unknown>;
   const data = structuredClone(card.data) as Record<string, unknown>;
 
+  // 写入仓库前：把 extensions.regex_scripts 转为友好（clean）格式，
+  // 字段对齐 st-api-wrapper docs/regexScript/get.md。
+  if (data.extensions) {
+    data.extensions = transformExtensionsRegexScriptsToClean(data.extensions) as Record<
+      string,
+      unknown
+    >;
+  }
+
   for (const [fieldName, fieldConfig] of Object.entries(fieldsConfig)) {
     if (!fieldConfig.enabled || !(fieldName in data)) {
       continue;
     }
 
     const fieldData = data[fieldName];
-    delete data[fieldName];
-
     if (!fieldData) {
-      data[fieldName] = fieldData;
+      // 原位保留 falsy 值（与原行为一致）
       continue;
     }
 

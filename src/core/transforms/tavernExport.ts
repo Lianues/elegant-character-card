@@ -1,4 +1,5 @@
 import type { CharacterCardV3 } from "../models/cardSchemas.js";
+import { transformExtensionsRegexScriptsToNative } from "./regexScriptTransforms.js";
 
 /**
  * 将本项目内部 V3 格式（clean 结构）转换回 SillyTavern 兼容的角色卡 JSON。
@@ -242,7 +243,11 @@ export function convertV3ToTavernCard(card: CharacterCardV3): AnyRecord {
     ? worldBookToCharacterBook(data.world_book as unknown as AnyRecord)
     : null;
 
-  const extensions: AnyRecord = isRecord(data.extensions) ? { ...data.extensions } : {};
+  const rawExtensions: AnyRecord = isRecord(data.extensions) ? { ...data.extensions } : {};
+  // 出口：把仓库里的 friendly 格式 regex_scripts 转回 SillyTavern 原生字段
+  const extensions: AnyRecord = transformExtensionsRegexScriptsToNative(
+    rawExtensions,
+  ) as AnyRecord;
   const talkativeness =
     extensions.talkativeness !== undefined ? extensions.talkativeness : "0.5";
   const fav = extensions.fav !== undefined ? extensions.fav : false;

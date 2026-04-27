@@ -8,6 +8,7 @@ import { Command } from "commander";
 import { embedCardMetadata } from "../../core/png/metadata.js";
 import { getRepoImagePath, rebuildCard } from "../../core/repository/rebuild.js";
 import { convertV3ToTavernCard } from "../../core/transforms/tavernExport.js";
+import { withContributorsHeader } from "../../core/transforms/contributors.js";
 
 export interface BuildOptions {
   output?: string;
@@ -51,7 +52,9 @@ export async function runBuildCommand(repo: string, options: BuildOptions): Prom
 
   const card = await rebuildCard(repo, configPath);
   const useTavernFormat = !options.internal;
-  const exportPayload = useTavernFormat ? convertV3ToTavernCard(card) : card;
+  const exportPayload = withContributorsHeader(
+    useTavernFormat ? convertV3ToTavernCard(card) : card,
+  );
   // 酒馆原生导出使用 4 空格缩进；项目内部 V3 保持 2 空格
   const exportJson = JSON.stringify(exportPayload, null, useTavernFormat ? 4 : 2);
   const outputBase = options.output ?? `${card.data.name}_rebuilt`;

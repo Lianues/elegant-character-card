@@ -436,9 +436,8 @@ export async function dumpNestedField(
     }
 
     const subFieldData = modifiedData[subFieldName];
-    delete modifiedData[subFieldName];
-
     if (!subFieldData) {
+      delete modifiedData[subFieldName];
       continue;
     }
 
