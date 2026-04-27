@@ -15,4 +15,12 @@ function copyRecursive(src, dst) {
 
 copyRecursive("src/default.png", "dist/default.png");
 copyRecursive("src/docs", "dist/docs");
+
+// 给 CLI 入口加可执行权限（Windows 下 npm pack 不会自动设置）
+try {
+  fs.chmodSync("dist/cli/index.js", 0o755);
+} catch (_) {
+  // 非 POSIX 平台忽略
+}
+
 console.log("✓ assets copied to dist/");

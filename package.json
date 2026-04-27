@@ -2,7 +2,8 @@
   "name": "elegant-character-card",
   "version": "0.1.0",
   "description": "Elegant Character Card CLI-only toolkit (SillyTavern compatible)",
-  "license": "MIT",
+  "license": "GPL-3.0-only",
+  "author": "Lianues",
   "type": "module",
   "bin": {
     "elegant-character-card": "dist/cli/index.js",
@@ -10,11 +11,26 @@
   },
   "files": [
     "dist",
-    "src/default.png",
-    "src/docs",
     "README.md",
     "LICENSE"
   ],
+  "keywords": [
+    "sillytavern",
+    "character-card",
+    "tavern",
+    "cli",
+    "png",
+    "yaml",
+    "ecc"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Lianues/elegant-character-card.git"
+  },
+  "homepage": "https://github.com/Lianues/elegant-character-card#readme",
+  "bugs": {
+    "url": "https://github.com/Lianues/elegant-character-card/issues"
+  },
   "engines": {
     "node": ">=20.0.0"
   },
