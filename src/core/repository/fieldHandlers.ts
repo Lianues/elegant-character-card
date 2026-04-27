@@ -518,7 +518,10 @@ export async function loadArrayField(
   basePath: string,
   fieldName: string,
 ): Promise<unknown[]> {
-  const compareArrayFilenames = (a: string, b: string): number => a.localeCompare(b);
+  // 使用 numeric 排序，避免 1.yaml / 10.yaml / 11.yaml / 2.yaml
+  // 这类文件名按纯字典序被排成 1,10,11,2...，从而打乱数组顺序。
+  const compareArrayFilenames = (a: string, b: string): number =>
+    a.localeCompare(b, "zh-CN", { numeric: true, sensitivity: "base" });
 
   const fullPath = path.join(basePath, fieldName);
   if (!existsSync(fullPath)) {
@@ -663,7 +666,9 @@ export async function loadNestedField(
     }
 
     const maybePath = result[subFieldName];
-    if (typeof maybePath !== "string" || !maybePath.startsWith(fullPath)) {
+    // 同 rebuild.ts 的修复：路径标记可能是绝对路径或相对路径，
+    // 不再做前缀匹配，仅判断"是字符串"即视为路径标记并展开。
+    if (typeof maybePath !== "string") {
       continue;
     }
 

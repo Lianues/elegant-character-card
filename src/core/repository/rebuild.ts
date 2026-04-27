@@ -80,8 +80,14 @@ export async function rebuildCard(
       continue;
     }
 
-    const marker = data[fieldName];
-    if (typeof marker !== "string" || !marker.startsWith(basePath)) {
+    // 路径标记由 repositorize 写入，可能是绝对路径，也可能是相对路径
+    // （取决于运行 repo 命令时传入的 basePath 形式），甚至盘符大小写也可能
+    // 与本次 build 不一致。因此不再做字符串前缀匹配，直接按字段类型尝试
+    // 从磁盘加载——各 load* 函数自身已对"文件/目录不存在"做了兜底。
+    //
+    // 仅当字段值是字符串时才视为"路径标记"需要展开；如果用户已经在
+    // _metadata.yaml 里直接写了对象/数组（少见），保留原值不动。
+    if (typeof data[fieldName] !== "string") {
       continue;
     }
 

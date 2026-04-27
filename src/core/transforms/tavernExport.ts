@@ -59,6 +59,17 @@ function isRecord(value: unknown): value is AnyRecord {
 function pickBool(value: unknown, fallback: boolean): boolean {
   return typeof value === "boolean" ? value : fallback;
 }
+/**
+ * 宽松版 pickBool：boolean / number 都按原值保留（酒馆历史上 0/1 与
+ * false/true 在这些 extension 字段里是等价混写的），仅在缺失或类型不符
+ * 时回落到默认值。用于 extensions 内的"布尔类"字段，避免把原 JSON 中
+ * 的 0 静默改写成 false（破坏无损往返）。
+ */
+function passBool(value: unknown, fallback: boolean): boolean | number {
+  if (typeof value === "boolean") return value;
+  if (typeof value === "number" && Number.isFinite(value)) return value;
+  return fallback;
+}
 function pickNum(value: unknown, fallback: number): number {
   return typeof value === "number" && Number.isFinite(value) ? value : fallback;
 }
@@ -116,23 +127,24 @@ function cleanEntryToLegacy(entry: AnyRecord, displayIndex: number): AnyRecord {
   // 严格按参考顺序构建 extensions
   const extensions: AnyRecord = {
     position: positionNum,
-    exclude_recursion: Boolean(entry.excludeRecursion),
+    exclude_recursion: passBool(sourceExt.exclude_recursion, Boolean(entry.excludeRecursion)),
     display_index: pickNum(sourceExt.display_index, displayIndex),
     probability: probabilityValue,
-    useProbability: pickBool(sourceExt.useProbability, true),
+    useProbability: passBool(sourceExt.useProbability, true),
     depth: depthValue,
     selectiveLogic: selectiveLogicNum,
+    outlet_name: pickStr(sourceExt.outlet_name, ""),
     group: pickStr(sourceExt.group, ""),
-    group_override: pickBool(sourceExt.group_override ?? sourceExt.groupOverride, false),
+    group_override: passBool(sourceExt.group_override ?? sourceExt.groupOverride, false),
     group_weight: pickNum(sourceExt.group_weight ?? sourceExt.groupWeight, 100),
-    prevent_recursion: Boolean(entry.preventRecursion),
-    delay_until_recursion: pickBool(
+    prevent_recursion: passBool(sourceExt.prevent_recursion, Boolean(entry.preventRecursion)),
+    delay_until_recursion: passBool(
       sourceExt.delay_until_recursion ?? sourceExt.delayUntilRecursion,
       false,
     ),
     scan_depth: pickNumOrNull(sourceExt.scan_depth, null),
     match_whole_words: pickBoolOrNull(sourceExt.match_whole_words, null),
-    use_group_scoring: pickBoolOrNull(
+    use_group_scoring: passBool(
       sourceExt.use_group_scoring ?? sourceExt.useGroupScoring,
       false,
     ),
@@ -140,19 +152,20 @@ function cleanEntryToLegacy(entry: AnyRecord, displayIndex: number): AnyRecord {
     automation_id: pickStr(sourceExt.automation_id ?? sourceExt.automationId, ""),
     role: roleNum,
     vectorized:
-      entry.activationMode === "vector" || pickBool(sourceExt.vectorized, false),
+      entry.activationMode === "vector"
+        ? true
+        : passBool(sourceExt.vectorized, false),
     sticky: pickNum(sourceExt.sticky, 0),
     cooldown: pickNum(sourceExt.cooldown, 0),
     delay: pickNum(sourceExt.delay, 0),
-    match_persona_description: pickBool(sourceExt.match_persona_description, false),
-    match_character_description: pickBool(sourceExt.match_character_description, false),
-    match_character_personality: pickBool(sourceExt.match_character_personality, false),
-    match_character_depth_prompt: pickBool(sourceExt.match_character_depth_prompt, false),
-    match_scenario: pickBool(sourceExt.match_scenario, false),
-    match_creator_notes: pickBool(sourceExt.match_creator_notes, false),
-    outlet_name: pickStr(sourceExt.outlet_name, ""),
+    match_persona_description: passBool(sourceExt.match_persona_description, false),
+    match_character_description: passBool(sourceExt.match_character_description, false),
+    match_character_personality: passBool(sourceExt.match_character_personality, false),
+    match_character_depth_prompt: passBool(sourceExt.match_character_depth_prompt, false),
+    match_scenario: passBool(sourceExt.match_scenario, false),
+    match_creator_notes: passBool(sourceExt.match_creator_notes, false),
     triggers: Array.isArray(sourceExt.triggers) ? sourceExt.triggers : [],
-    ignore_budget: pickBool(sourceExt.ignore_budget, false),
+    ignore_budget: passBool(sourceExt.ignore_budget, false),
   };
 
   // 严格按参考顺序构建 entry

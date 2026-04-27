@@ -147,21 +147,24 @@ export function regexScriptCleanToNative(clean: unknown): AnyRecord {
 
   const other = isRecord(clean.other) ? clean.other : {};
 
-  // 严格按酒馆原生字段顺序构建
+  // 严格按酒馆原生字段顺序构建：
+  //   id, scriptName, findRegex, replaceString, trimStrings, placement,
+  //   disabled, markdownOnly, promptOnly, runOnEdit,
+  //   substituteRegex, minDepth, maxDepth, ...other
   const native: AnyRecord = {
     id: pickStr(clean.id),
     scriptName: pickStr(clean.name),
-    disabled: clean.enabled === false,
-    runOnEdit: pickBool(clean.runOnEdit, true),
     findRegex: pickStr(clean.findRegex),
     replaceString: pickStr(clean.replaceRegex),
     trimStrings: pickStrArr(clean.trimRegex),
     placement,
+    disabled: clean.enabled === false,
+    markdownOnly,
+    promptOnly,
+    runOnEdit: pickBool(clean.runOnEdit, true),
     substituteRegex,
     minDepth: pickNumOrNull(clean.minDepth),
     maxDepth: pickNumOrNull(clean.maxDepth),
-    markdownOnly,
-    promptOnly,
     ...other,
   };
 

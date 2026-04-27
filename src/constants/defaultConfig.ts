@@ -87,7 +87,10 @@ export const DEFAULT_CONFIG: AppConfig = {
           regex_scripts: {
             enabled: true,
             type: "array",
-            file_pattern: "{idx}_{scriptName}.yaml",
+            // clean 格式字段名是 name，不是 scriptName。
+            // 旧配置会因取不到 scriptName 而回退成 1.yaml / 2.yaml / 10.yaml，
+            // 进而在重建时产生顺序错乱。
+            file_pattern: "{idx}_{name}.yaml",
             value_type: "dict",
           },
         },
