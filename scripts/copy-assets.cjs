@@ -14,6 +14,7 @@ function copyRecursive(src, dst) {
 }
 
 copyRecursive("src/default.png", "dist/default.png");
+copyRecursive("src/空卡.png", "dist/空卡.png");
 copyRecursive("src/docs", "dist/docs");
 
 // 给 CLI 入口加可执行权限（Windows 下 npm pack 不会自动设置）

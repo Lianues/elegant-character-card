@@ -5,7 +5,7 @@
 ## 当前进度
 
 - ✅ 完成工程骨架
-- ✅ 完成核心命令注册（`extract` / `repo` / `build` / `validate` / `info` / `init-config`）
+- ✅ 完成核心命令注册（`init` / `extract` / `repo` / `build` / `validate` / `info` / `init-config`）
 - ✅ 完成 CCV2/CCV3 schema、V2→V3 升级、PNG 元数据读写
 - ✅ 完成配置驱动的 `repo/build` 链路（`string/array/dict/nested`）
 - ✅ 世界书字段统一（`character_book -> world_book`，`alternate_greetings -> message`）
@@ -42,7 +42,7 @@ npm install --save-dev elegant-character-card
 npx ecc --help
 ```
 
-`files` 字段已声明发布范围，安装后会自带 `dist/`、`src/default.png`、`src/docs/`，开箱即用。
+`files` 字段已声明发布范围，安装后会自带 `dist/`（含内置模板 `dist/空卡.png`、`dist/default.png` 与 `dist/docs/`），开箱即用。
 
 ### 3) 不想安装的开发模式
 
@@ -58,6 +58,11 @@ npm run dev -- --help
 ```bash
 # 生成默认配置
 ecc init-config
+
+# 项目初始化：用内置「空卡」模板一键生成一个新仓库（等价于对内置空卡执行 ecc repo）
+ecc init                 # 直接生成名为「空卡」的仓库
+ecc init 我的新卡        # 指定角色名/仓库目录名
+ecc init 我的新卡 -c custom.yaml  # 指定配置文件
 
 # PNG -> JSON
 ecc extract character.png
@@ -97,6 +102,37 @@ ecc world-book build my_world_book -o world_book.rebuilt.json
 | 缩进 | 4 空格（与酒馆原生导出一致） |
 
 如需输出本项目内部 V3 格式（`message[]` 数组、`world_book` clean 结构），加 `--internal`。
+
+## 项目初始化（`ecc init`）
+
+`ecc init [name]` 用来**从零开搭一个新角色卡仓库**，避免手写 `_metadata.yaml` / 各字段目录。
+
+其本质等价于对项目内置的「空卡」模板执行一次 `ecc repo`：
+
+- 模板源：`src/空卡.png`（编译后位于 `dist/空卡.png`，随 npm 包一起发布）
+- 自动复用 `repo` 全部链路：剥离 metadata chunk → 生成裸图 `<repo>/character.png` → 写入 `image_path` → 复制项目内置 `docs/` → 拆分各字段目录
+
+用法：
+
+```bash
+ecc init                          # 生成名为「空卡」的仓库目录
+ecc init 我的新卡                 # 用「我的新卡」覆盖 data.name，仓库目录同名
+ecc init 我的新卡 -c custom.yaml  # 自定义配置文件路径（不存在时回落到内置默认）
+```
+
+生成产物（以 `ecc init 我的新卡` 为例）：
+
+```
+我的新卡/
+├── _metadata.yaml          # 主元数据（已写好 image_path: character.png）
+├── character.png           # 已剥离 metadata chunk 的裸底图
+├── docs/                   # 项目内置规范文档（离线查阅字段说明）
+├── extensions/             # SillyTavern 角色级扩展 + regex_scripts/
+├── message/                # first_mes / alternate_greetings 拆分文件
+└── world_book/             # 世界书条目目录
+```
+
+下一步即可编辑各字段文件，然后用 `ecc build 我的新卡` 产出最终角色卡 PNG / JSON。
 
 ## 默认底图机制（`image_path`）
 
