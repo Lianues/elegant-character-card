@@ -53,6 +53,53 @@ function isRecord(value: unknown): value is AnyRecord {
 }
 
 /**
+ * 规范化路径链：分隔符统一为 `/`，去除首尾与多余分隔，去掉空段。
+ * 与 hierarchy-manager 的 `normalizePathChain` 保持一致（不做文件名 sanitize，
+ * 因为出口给酒馆/前端使用，不是写入磁盘的文件名）。
+ */
+function normalizePathChainForExport(rawPath: unknown): string {
+  if (typeof rawPath !== "string") {
+    return "";
+  }
+  return rawPath
+    .split(/[\\/]/)
+    .map((seg) => seg.trim())
+    .filter((seg) => seg.length > 0)
+    .join("/");
+}
+
+function expandParentPaths(pathChain: string): string[] {
+  const normalized = normalizePathChainForExport(pathChain);
+  if (!normalized) return [];
+  const segments = normalized.split("/");
+  const result: string[] = [];
+  for (let i = 1; i <= segments.length; i += 1) {
+    result.push(segments.slice(0, i).join("/"));
+  }
+  return result;
+}
+
+/**
+ * 收集所有路径，自动补齐父路径，去重并按层级 + 本地化排序。
+ * 排序规则与 hierarchy-manager 的 `pathLocaleCompare` 对齐：
+ * 先按深度升序，再按 zh-Hans-CN 本地化排序。
+ */
+function normalizeFolderPathsForExport(paths: Iterable<unknown>): string[] {
+  const set = new Set<string>();
+  for (const raw of paths) {
+    for (const expanded of expandParentPaths(normalizePathChainForExport(raw))) {
+      set.add(expanded);
+    }
+  }
+  return Array.from(set).sort((a, b) => {
+    const depthA = a ? a.split("/").length : 0;
+    const depthB = b ? b.split("/").length : 0;
+    if (depthA !== depthB) return depthA - depthB;
+    return String(a).localeCompare(String(b), "zh-Hans-CN");
+  });
+}
+
+/**
  * 优先使用源 extensions 中保留的原值，类型不匹配/缺失时才回落到默认值。
  * 这是为了保证 extract → repo → build 的字段无损往返。
  */
@@ -182,6 +229,9 @@ function cleanEntryToLegacy(entry: AnyRecord, displayIndex: number): AnyRecord {
     enabled: entry.enabled !== false,
     position: positionLegacy,
     use_regex: pickBool(other.use_regex, false),
+    // hierarchy-manager 对齐：把仓库内 entry.path_chain 作为顶层字段透出
+    // （与其 characterbook-sync.js 中 ENTRY_PATH_KEY 写入位置一致：use_regex 之后、extensions 之前）
+    path_chain: normalizePathChainForExport(entry.path_chain),
     extensions,
   };
 
@@ -220,6 +270,21 @@ function worldBookToCharacterBook(worldBook: AnyRecord): AnyRecord {
   }
   if (isRecord(worldBook.extensions) && Object.keys(worldBook.extensions).length > 0) {
     result.extensions = worldBook.extensions;
+  }
+
+  // hierarchy-manager 对齐：把世界书层级目录列表 folder_paths 透出到 character_book 顶层。
+  // 同时合并所有 entry 的 path_chain（自动补齐父路径），确保即使 _metadata.yaml 没显式列出
+  // folder_paths 也不会丢失层级信息。仅在最终列表非空时才写入字段，避免给无层级的卡引入冗余字段。
+  const collectedFolderPaths = normalizeFolderPathsForExport([
+    ...(Array.isArray(worldBook.folder_paths) ? worldBook.folder_paths : []),
+    ...(Array.isArray(worldBook.entries)
+      ? worldBook.entries
+          .filter((entry): entry is AnyRecord => isRecord(entry))
+          .map((entry) => entry.path_chain)
+      : []),
+  ]);
+  if (collectedFolderPaths.length > 0) {
+    result.folder_paths = collectedFolderPaths;
   }
 
   return result;
