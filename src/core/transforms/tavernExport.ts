@@ -215,6 +215,15 @@ function cleanEntryToLegacy(entry: AnyRecord, displayIndex: number): AnyRecord {
     ignore_budget: passBool(sourceExt.ignore_budget, false),
   };
 
+  // hierarchy-manager 对齐：把仓库内 entry.path_chain 写入 extensions.path_chain。
+  // 之所以放在 extensions 而非顶层：SillyTavern 在导入角色卡时会调用 character_book → world_info
+  // 转换器，它只映射 V3 spec 的标准顶层字段，自定义顶层字段（如 path_chain）会被静默丢弃；
+  // 而 extensions 是 spec 明确允许的扩展容器，会被原样保留，从而能穿透导入流程被前端读到。
+  const exportedPathChain = normalizePathChainForExport(entry.path_chain);
+  if (exportedPathChain) {
+    extensions.path_chain = exportedPathChain;
+  }
+
   // 严格按参考顺序构建 entry
   const legacy: AnyRecord = {
     id: idValue,
@@ -229,9 +238,6 @@ function cleanEntryToLegacy(entry: AnyRecord, displayIndex: number): AnyRecord {
     enabled: entry.enabled !== false,
     position: positionLegacy,
     use_regex: pickBool(other.use_regex, false),
-    // hierarchy-manager 对齐：把仓库内 entry.path_chain 作为顶层字段透出
-    // （与其 characterbook-sync.js 中 ENTRY_PATH_KEY 写入位置一致：use_regex 之后、extensions 之前）
-    path_chain: normalizePathChainForExport(entry.path_chain),
     extensions,
   };
 
@@ -268,13 +274,11 @@ function worldBookToCharacterBook(worldBook: AnyRecord): AnyRecord {
   if (typeof worldBook.recursive_scanning === "boolean") {
     result.recursive_scanning = worldBook.recursive_scanning;
   }
-  if (isRecord(worldBook.extensions) && Object.keys(worldBook.extensions).length > 0) {
-    result.extensions = worldBook.extensions;
-  }
 
-  // hierarchy-manager 对齐：把世界书层级目录列表 folder_paths 透出到 character_book 顶层。
-  // 同时合并所有 entry 的 path_chain（自动补齐父路径），确保即使 _metadata.yaml 没显式列出
-  // folder_paths 也不会丢失层级信息。仅在最终列表非空时才写入字段，避免给无层级的卡引入冗余字段。
+  // hierarchy-manager 对齐：folder_paths 写入 character_book.extensions.folder_paths。
+  // 同 entry.extensions.path_chain 的理由——SillyTavern 的 character_book → world_info 转换
+  // 不会保留自定义顶层字段，但 extensions 会被原样透传，因此把层级目录列表放在 extensions 里
+  // 才能穿透导入流程被 hierarchy-manager 读到。会自动合并所有 entry 的 path_chain（含父路径）。
   const collectedFolderPaths = normalizeFolderPathsForExport([
     ...(Array.isArray(worldBook.folder_paths) ? worldBook.folder_paths : []),
     ...(Array.isArray(worldBook.entries)
@@ -283,8 +287,14 @@ function worldBookToCharacterBook(worldBook: AnyRecord): AnyRecord {
           .map((entry) => entry.path_chain)
       : []),
   ]);
+
+  const sourceExtensions = isRecord(worldBook.extensions) ? worldBook.extensions : {};
+  const mergedExtensions: AnyRecord = { ...sourceExtensions };
   if (collectedFolderPaths.length > 0) {
-    result.folder_paths = collectedFolderPaths;
+    mergedExtensions.folder_paths = collectedFolderPaths;
+  }
+  if (Object.keys(mergedExtensions).length > 0) {
+    result.extensions = mergedExtensions;
   }
 
   return result;
