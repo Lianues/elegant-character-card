@@ -254,7 +254,7 @@ function cleanEntryToLegacy(entry: AnyRecord, displayIndex: number): AnyRecord {
  * world_book → character_book，字段顺序：entries, name
  * （仅在源数据中存在的可选字段才追加，保持与 SillyTavern 实际导出一致的简洁性）
  */
-function worldBookToCharacterBook(worldBook: AnyRecord): AnyRecord {
+export function worldBookToCharacterBook(worldBook: AnyRecord): AnyRecord {
   const entries = Array.isArray(worldBook.entries)
     ? worldBook.entries
         .filter((e): e is AnyRecord => isRecord(e))

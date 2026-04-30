@@ -7,6 +7,7 @@ import { Command } from "commander";
 
 import { loadCardFromFile } from "../../core/card/loadCard.js";
 import { sanitizeFilename } from "../../core/repository/fieldHandlers.js";
+import { worldBookToCharacterBook } from "../../core/transforms/tavernExport.js";
 import {
   rebuildWorldBook,
   repositorizeWorldBook,
@@ -21,6 +22,7 @@ export interface WorldBookRepoOptions {
 export interface WorldBookBuildOptions {
   output?: string;
   config?: string;
+  internal?: boolean;
 }
 
 export interface WorldBookInitOptions {
@@ -83,12 +85,21 @@ export async function runWorldBookBuildCommand(
   // path.basename('.') 在某些 Node 版本上为空串，先 resolve 成绝对路径再取名
   const defaultName = path.basename(path.resolve(repoPath)) || "world_book";
   const outputFile = options.output ?? `${defaultName}.json`;
-  await writeFile(outputFile, `${JSON.stringify(worldBook, null, 2)}\n`, "utf-8");
+  const useTavernFormat = !options.internal;
+  // 与 `ecc build` 保持一致：默认输出酒馆兼容的 character_book 格式（复用同一转换器），
+  // 仅当 --internal 时才直出项目内部 V3 world_book 结构。
+  const exportPayload = useTavernFormat
+    ? worldBookToCharacterBook(worldBook as unknown as Record<string, unknown>)
+    : worldBook;
+  // 酒馆原生导出使用 4 空格缩进；项目内部 V3 保持 2 空格
+  const exportJson = JSON.stringify(exportPayload, null, useTavernFormat ? 4 : 2);
+  await writeFile(outputFile, `${exportJson}\n`, "utf-8");
 
   console.log("✅ 世界书重建成功");
   console.log(`- 输出文件: ${outputFile}`);
   console.log(`- 条目数: ${worldBook.entries.length}`);
   console.log(`- 文件夹数: ${worldBook.folder_paths.length}`);
+  console.log(`- 格式: ${useTavernFormat ? "SillyTavern 兼容（character_book）" : "项目内部 V3"}`);
 }
 
 export async function runWorldBookInitCommand(
@@ -160,9 +171,10 @@ export function registerWorldBookCommand(program: Command): void {
 
   worldBook
     .command("build")
-    .description("从世界书仓库目录重建为 world_book JSON（省略仓库参数则使用当前目录）")
+    .description("从世界书仓库目录重建为 world_book JSON（默认输出 SillyTavern 兼容格式；省略仓库参数则使用当前目录）")
     .argument("[repo]", "世界书仓库目录（默认当前目录 .）", ".")
     .option("-o, --output <file>", "输出 JSON 文件")
     .option("-c, --config <file>", "配置文件路径", "config.yaml")
+    .option("--internal", "输出本项目内部 V3 格式（不做酒馆兼容转换）")
     .action(runWorldBookBuildCommand);
 }
