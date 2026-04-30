@@ -162,6 +162,9 @@ function normalizeStandaloneEntry(entry: unknown): unknown {
     ["prevent_recursion", normalized.preventRecursion],
     ["vectorized", normalized.vectorized],
     ["case_sensitive", normalized.caseSensitive],
+    // 顶层 path_chain（旧/独立格式）统一提升到 extensions.path_chain，
+    // 让下游 legacyBookEntryToCleanEntry 只需从 extensions 读取一处来源。
+    ["path_chain", normalized.path_chain],
   ];
 
   for (const [key, value] of extMappings) {
@@ -187,11 +190,22 @@ function normalizeStandaloneWorldBookPayload(payload: unknown): WorldBook {
       ? Object.values(rawEntries).map((entry) => normalizeStandaloneEntry(entry))
       : [];
 
+  // 顶层 folder_paths（旧/独立格式）统一提升到 extensions.folder_paths，
+  // 让下游 normalizeLegacyBookInPayload 只需从 extensions 读取一处来源。
+  const existingExtensions = isRecord(payload.extensions)
+    ? (payload.extensions as Record<string, unknown>)
+    : {};
+  const promotedExtensions: Record<string, unknown> = { ...existingExtensions };
+  if (!("folder_paths" in promotedExtensions) && Array.isArray(payload.folder_paths)) {
+    promotedExtensions.folder_paths = payload.folder_paths;
+  }
+
   const wrappedPayload = {
     data: {
       character_book: {
         ...payload,
         entries: normalizedEntries,
+        extensions: promotedExtensions,
       },
     },
   };

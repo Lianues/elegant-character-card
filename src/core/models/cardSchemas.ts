@@ -65,6 +65,14 @@ export const LorebookEntrySchema = z.object({
   order: IntegerSchema.default(100),
   depth: IntegerSchema.default(4),
   path_chain: z.string().default(""),
+  /**
+   * 该条目落盘到仓库时使用的文件名 basename（不含扩展名）。
+   * - 由 loadArrayField 在加载时根据磁盘文件名写入，dumpArrayField 在写盘时优先采用；
+   * - 通过 extensions._filename 通道穿透 JSON 导出/导入回路（同 path_chain 套路），
+   *   避免用户改 name 后下一轮 extract 出现 "7_city.yaml" 与 "7_metropolis.yaml" 这种漂移；
+   * - 仅当用户没有显式提供时为空字符串，此时 dump 会回退到 file_pattern 生成。
+   */
+  _filename: z.string().default(""),
   other: z.record(z.unknown()).default({}),
 });
 

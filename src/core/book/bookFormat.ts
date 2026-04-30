@@ -149,6 +149,13 @@ function legacyBookEntryToCleanEntry(entry: AnyRecord): AnyRecord {
     "vectorized",
     "case_sensitive",
     "caseSensitive",
+    // path_chain 也由 clean 顶层字段表示——导出端把它塞进 extensions 只是为了
+    // 穿透 SillyTavern 的 character_book→world_info 转换；这里反向还原后必须把
+    // extensions 里的副本剔除，否则 YAML 会出现"同一信息两份"
+    "path_chain",
+    // _filename 同理：也是借 extensions 通道穿透 JSON 导出/导入，
+    // 反向还原到 clean 顶层后必须从 extensions 剔除，避免重复
+    "_filename",
   ]);
   const residualExtensions: AnyRecord = {};
   for (const [key, value] of Object.entries(extensions)) {
@@ -184,7 +191,11 @@ function legacyBookEntryToCleanEntry(entry: AnyRecord): AnyRecord {
     position,
     order: asNumber(entry.insertion_order ?? entry.order, 100),
     depth: asNumber(extensions.depth ?? entry.depth, 4),
-    path_chain: String(entry.path_chain ?? ""),
+    // 从 extensions.path_chain 还原：导出端统一把它塞进 extensions 以穿透 ST 导入流程，
+    // 不读顶层（顶层不是稳定来源，只在仓库内部传递时短暂存在）。
+    path_chain: String(extensions.path_chain ?? ""),
+    // 同 path_chain：_filename 只从 extensions._filename 还原。
+    _filename: String(extensions._filename ?? ""),
     other,
   };
 }
@@ -227,10 +238,25 @@ export function normalizeLegacyBookInPayload(payload: unknown): unknown {
   };
 
   if (worldBookRaw) {
-    normalizedData.world_book = {
+    // hierarchy-manager 对齐反向：folder_paths 在导出时被塞进 character_book.extensions.folder_paths
+    // 以穿透 SillyTavern 的 character_book→world_info 转换，这里反向从 extensions 捞回顶层。
+    // 不再支持顶层 folder_paths 作为来源——extensions 是唯一稳定通道。
+    const worldBookExtensions = isRecord(worldBookRaw.extensions)
+      ? (worldBookRaw.extensions as AnyRecord)
+      : null;
+    const normalizedWorldBook: AnyRecord = {
       ...worldBookRaw,
       entries: normalizeBookEntries(worldBookRaw.entries),
     };
+    if (worldBookExtensions && "folder_paths" in worldBookExtensions) {
+      const { folder_paths: rawFolderPaths, ...restExtensions } = worldBookExtensions;
+      // 反向还原后从 extensions 中剔除 folder_paths，避免"同一信息两份"
+      normalizedWorldBook.extensions = restExtensions;
+      if (Array.isArray(rawFolderPaths)) {
+        normalizedWorldBook.folder_paths = rawFolderPaths.map((item) => String(item));
+      }
+    }
+    normalizedData.world_book = normalizedWorldBook;
   }
 
   if (!("message" in normalizedData)) {

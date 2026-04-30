@@ -224,6 +224,12 @@ function cleanEntryToLegacy(entry: AnyRecord, displayIndex: number): AnyRecord {
     extensions.path_chain = exportedPathChain;
   }
 
+  // 同 path_chain：把仓库记忆的源文件名透传到 extensions._filename，让下一轮
+  // extract 能把条目还原到原文件名（避免 user 改 name 后文件名漂移）。
+  if (typeof entry._filename === "string" && entry._filename.trim()) {
+    extensions._filename = entry._filename.trim();
+  }
+
   // 严格按参考顺序构建 entry
   const legacy: AnyRecord = {
     id: idValue,

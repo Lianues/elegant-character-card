@@ -330,20 +330,39 @@ export async function dumpArrayField(
     for (let idx = 0; idx < items.length; idx += 1) {
       const sourceItem = items[idx];
       const item = isRecord(sourceItem) ? { ...sourceItem } : sourceItem;
-      let filename = config.file_pattern;
+      const expectedExt = valueType === "dict" ? ".yaml" : ".md";
+      let filename: string;
 
-      if (filename.includes("{idx}")) {
-        const indexText =
-          fieldName === "message"
-            ? String(idx)
-            : String(idx + 1).padStart(zfillLength, "0");
-        filename = filename.replaceAll("{idx}", indexText);
+      // 文件名记忆：若 item 带有 _filename（来自上一轮 load 或 JSON 通道穿透），
+      // 优先按它落盘，避免 user 改 name 后 file_pattern 把文件名改飞了。
+      const memoizedFilename =
+        isRecord(item) && typeof item._filename === "string" ? item._filename.trim() : "";
+      if (memoizedFilename) {
+        const sanitized = sanitizeFilename(memoizedFilename);
+        filename = sanitized.toLowerCase().endsWith(expectedExt)
+          ? sanitized
+          : `${sanitized}${expectedExt}`;
+      } else {
+        filename = config.file_pattern;
+
+        if (filename.includes("{idx}")) {
+          const indexText =
+            fieldName === "message"
+              ? String(idx)
+              : String(idx + 1).padStart(zfillLength, "0");
+          filename = filename.replaceAll("{idx}", indexText);
+        }
+
+        if (isRecord(item)) {
+          filename =
+            extractFilenameFromPattern(filename, item) ??
+            (valueType === "dict" ? `${idx + 1}.yaml` : `${idx + 1}.md`);
+        }
       }
 
-      if (isRecord(item)) {
-        filename =
-          extractFilenameFromPattern(filename, item) ??
-          (valueType === "dict" ? `${idx + 1}.yaml` : `${idx + 1}.md`);
+      // _filename 信息已编码进文件名本身，剥离避免 yaml 中"两份"
+      if (isRecord(item) && "_filename" in item) {
+        delete item._filename;
       }
 
       const pathChain = isWorldBookEntries && isRecord(item) ? normalizePathChain(item.path_chain) : "";
@@ -369,6 +388,9 @@ export async function dumpArrayField(
     const pathChain = isWorldBookEntries && isRecord(item) ? normalizePathChain(item.path_chain) : "";
     if (isWorldBookEntries && isRecord(item)) {
       delete item.path_chain;
+    }
+    if (isRecord(item) && "_filename" in item) {
+      delete item._filename;
     }
 
     const targetDir = pathChain ? path.join(fullPath, ...pathChain.split("/")) : fullPath;
@@ -575,11 +597,18 @@ export async function loadArrayField(
       yamlFilename,
     );
 
-    if (isWorldBookEntries && isRecord(item)) {
-      item = {
+    if (isRecord(item)) {
+      // 把磁盘上的源文件名 basename（不含扩展名）记到 _filename，
+      // 让下次 dump 能写回到同一个文件名（即使 user 改了 name 字段或自定义了文件名）。
+      const sourceBasename = path.parse(yamlFilename).name;
+      const merged: Record<string, unknown> = {
         ...item,
-        path_chain: toPosixRelativePath(fullPath, yamlDirPath),
+        _filename: sourceBasename,
       };
+      if (isWorldBookEntries) {
+        merged.path_chain = toPosixRelativePath(fullPath, yamlDirPath);
+      }
+      item = merged;
     }
 
     if (item || valueType === "string") {
