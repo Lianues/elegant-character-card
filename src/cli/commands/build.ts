@@ -40,17 +40,26 @@ function normalizeFormat(input: string | undefined): "json" | "png" {
   throw new Error("输出格式仅支持 json 或 png");
 }
 
-export async function runBuildCommand(repo: string, options: BuildOptions): Promise<void> {
-  if (!existsSync(repo)) {
-    throw new Error(`仓库目录不存在: ${repo}`);
+export async function runBuildCommand(
+  repo: string | undefined,
+  options: BuildOptions,
+): Promise<void> {
+  const repoPath = repo ?? ".";
+  if (!existsSync(repoPath)) {
+    throw new Error(`仓库目录不存在: ${repoPath}`);
+  }
+  if (!existsSync(path.join(repoPath, "_metadata.yaml"))) {
+    throw new Error(
+      `当前目录不是有效的角色卡仓库（缺少 _metadata.yaml）：${path.resolve(repoPath)}`,
+    );
   }
 
   const format = normalizeFormat(options.format);
   const configPath = options.config ?? "config.yaml";
 
-  console.log(`🔨 正在重建: ${repo}`);
+  console.log(`🔨 正在重建: ${path.resolve(repoPath)}`);
 
-  const card = await rebuildCard(repo, configPath);
+  const card = await rebuildCard(repoPath, configPath);
   const useTavernFormat = !options.internal;
   const exportPayload = withContributorsHeader(
     useTavernFormat ? convertV3ToTavernCard(card) : card,
@@ -83,7 +92,7 @@ export async function runBuildCommand(repo: string, options: BuildOptions): Prom
     resolvedBaseImage = options.baseImage;
     baseImageSource = "命令行 -b 指定";
   } else {
-    const { raw, resolved } = await getRepoImagePath(repo);
+    const { raw, resolved } = await getRepoImagePath(repoPath);
     if (raw && resolved) {
       if (!existsSync(resolved)) {
         throw new Error(
@@ -116,8 +125,8 @@ export async function runBuildCommand(repo: string, options: BuildOptions): Prom
 export function registerBuildCommand(program: Command): void {
   program
     .command("build")
-    .description("从仓库结构重建角色卡（默认输出 SillyTavern 兼容格式）")
-    .argument("<repo>", "仓库目录路径")
+    .description("从仓库结构重建角色卡（默认输出 SillyTavern 兼容格式；省略仓库参数则使用当前目录）")
+    .argument("[repo]", "仓库目录路径（默认当前目录 .）", ".")
     .option("-o, --output <name>", "输出文件名（不含扩展名）")
     .option("-f, --format <type>", "输出格式：json 或 png", "json")
     .option("-b, --base-image <file>", "输出 PNG 时使用的底图")

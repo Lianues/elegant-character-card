@@ -42,18 +42,26 @@ export async function runWorldBookRepoCommand(
 }
 
 export async function runWorldBookBuildCommand(
-  repo: string,
+  repo: string | undefined,
   options: WorldBookBuildOptions,
 ): Promise<void> {
-  if (!existsSync(repo)) {
-    throw new Error(`仓库目录不存在: ${repo}`);
+  const repoPath = repo ?? ".";
+  if (!existsSync(repoPath)) {
+    throw new Error(`仓库目录不存在: ${repoPath}`);
+  }
+  if (!existsSync(path.join(repoPath, "_metadata.yaml"))) {
+    throw new Error(
+      `当前目录不是有效的世界书仓库（缺少 _metadata.yaml）：${path.resolve(repoPath)}`,
+    );
   }
 
   const configPath = options.config ?? "config.yaml";
-  console.log(`📚 正在重建世界书: ${repo}`);
+  console.log(`📚 正在重建世界书: ${path.resolve(repoPath)}`);
 
-  const worldBook = await rebuildWorldBook(repo, configPath);
-  const outputFile = options.output ?? `${path.basename(repo)}.json`;
+  const worldBook = await rebuildWorldBook(repoPath, configPath);
+  // path.basename('.') 在某些 Node 版本上为空串，先 resolve 成绝对路径再取名
+  const defaultName = path.basename(path.resolve(repoPath)) || "world_book";
+  const outputFile = options.output ?? `${defaultName}.json`;
   await writeFile(outputFile, `${JSON.stringify(worldBook, null, 2)}\n`, "utf-8");
 
   console.log("✅ 世界书重建成功");
@@ -77,8 +85,8 @@ export function registerWorldBookCommand(program: Command): void {
 
   worldBook
     .command("build")
-    .description("从世界书仓库目录重建为 world_book JSON")
-    .argument("<repo>", "世界书仓库目录")
+    .description("从世界书仓库目录重建为 world_book JSON（省略仓库参数则使用当前目录）")
+    .argument("[repo]", "世界书仓库目录（默认当前目录 .）", ".")
     .option("-o, --output <file>", "输出 JSON 文件")
     .option("-c, --config <file>", "配置文件路径", "config.yaml")
     .action(runWorldBookBuildCommand);
