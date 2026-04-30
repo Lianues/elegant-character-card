@@ -79,12 +79,29 @@ describe("repositorize + rebuildCard", () => {
             {
               name: "script-one",
               enabled: true,
+              // file_pattern 解析失败（{value.name} 取不到）会回退到 1.yaml，
+              // load 时用磁盘 basename 注入 _filename，预期值需对齐
+              _filename: "1",
             },
           ],
           regex_scripts: [
+            // 仓库内采用 friendly（clean）格式，对齐 st-api-wrapper docs/regexScript/get.md
+            // 参考样例：测试文件夹/.../extensions/regex_scripts/1_正则脚本1.yaml
             {
-              scriptName: "regex-one",
-              pattern: "test",
+              id: "aebf48a0-4573-40f0-bca4-f1fb2a05ceec",
+              name: "正则脚本1",
+              enabled: true,
+              findRegex: "查找1",
+              replaceRegex: "替换为1",
+              trimRegex: [],
+              targets: ["userInput"],
+              view: ["user"],
+              runOnEdit: true,
+              macroMode: "none",
+              minDepth: null,
+              maxDepth: null,
+              // file_pattern: "{idx}_{name}.yaml" → "1_正则脚本1.yaml"
+              _filename: "1_正则脚本1",
             },
           ],
         },
@@ -110,6 +127,7 @@ describe("repositorize + rebuildCard", () => {
               depth: 4,
               path_chain: "设定/组织",
               other: {},
+              _filename: "7_city",
             },
             {
               index: 8,
@@ -130,6 +148,7 @@ describe("repositorize + rebuildCard", () => {
               depth: 4,
               path_chain: "",
               other: {},
+              _filename: "8_rule",
             },
           ],
           folder_paths: ["人物", "设定", "设定/空目录", "设定/组织"],
@@ -154,7 +173,7 @@ describe("repositorize + rebuildCard", () => {
     const regexScripts = await readdir(
       path.join(repoPath, "extensions", "regex_scripts"),
     );
-    expect(regexScripts.some((name) => name.endsWith("_regex-one.yaml"))).toBe(true);
+    expect(regexScripts.some((name) => name === "1_正则脚本1.yaml")).toBe(true);
     expect(
       existsSync(path.join(repoPath, "world_book", "entries", "设定", "组织", "7_city.yaml")),
     ).toBe(true);

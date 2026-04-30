@@ -64,6 +64,29 @@ export function regexScriptNativeToClean(native: unknown): AnyRecord {
     return { other: { _raw: native } };
   }
 
+  // 幂等保护：如果对象已经是 friendly 格式（含 friendly 专属字段且不含 native 专属字段），
+  // 直接原样返回，避免把 friendly 字段误塞进 other。
+  // 判据：含 name 但不含 scriptName，或者含 targets/macroMode/view/replaceRegex/trimRegex 这些 friendly 专属键。
+  const hasFriendlySignal =
+    ("name" in native && !("scriptName" in native)) ||
+    "targets" in native ||
+    "macroMode" in native ||
+    "replaceRegex" in native ||
+    "trimRegex" in native ||
+    ("view" in native && Array.isArray((native as AnyRecord).view));
+  const hasNativeSignal =
+    "scriptName" in native ||
+    "placement" in native ||
+    "substituteRegex" in native ||
+    "replaceString" in native ||
+    "trimStrings" in native ||
+    "markdownOnly" in native ||
+    "promptOnly" in native ||
+    "disabled" in native;
+  if (hasFriendlySignal && !hasNativeSignal) {
+    return { ...native };
+  }
+
   const {
     id,
     scriptName,
