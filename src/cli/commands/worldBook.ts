@@ -1,11 +1,15 @@
 import { existsSync } from "node:fs";
 import { writeFile } from "node:fs/promises";
 import path from "node:path";
+import { fileURLToPath } from "node:url";
 
 import { Command } from "commander";
 
+import { loadCardFromFile } from "../../core/card/loadCard.js";
+import { sanitizeFilename } from "../../core/repository/fieldHandlers.js";
 import {
   rebuildWorldBook,
+  repositorizeWorldBook,
   repositorizeWorldBookFromJson,
 } from "../../core/worldBook/worldBookRepository.js";
 
@@ -17,6 +21,22 @@ export interface WorldBookRepoOptions {
 export interface WorldBookBuildOptions {
   output?: string;
   config?: string;
+}
+
+export interface WorldBookInitOptions {
+  config?: string;
+}
+
+/**
+ * 解析项目内置的「空卡」模板路径（其内嵌的 character_book 即「空世界书」模板）。
+ * 复用与 ecc init 相同的查找逻辑：
+ *   - 开发模式（tsx）：当前文件位于 src/cli/commands/，模板在 src/空卡.png
+ *   - 生产模式：当前文件位于 dist/cli/commands/，模板在 dist/空卡.png
+ */
+function resolveTemplateCardPath(): string | null {
+  const here = path.dirname(fileURLToPath(import.meta.url));
+  const candidate = path.resolve(here, "../../空卡.png");
+  return existsSync(candidate) ? candidate : null;
 }
 
 export async function runWorldBookRepoCommand(
@@ -39,6 +59,7 @@ export async function runWorldBookRepoCommand(
   console.log("✅ 世界书仓库化成功");
   console.log(`- 输出目录: ${outputDir}`);
   console.log(`- 配置文件: ${configPath}`);
+  console.log(`- 规范文档: ${path.join(outputDir, "docs")}（已自动复制项目内置 docs/）`);
 }
 
 export async function runWorldBookBuildCommand(
@@ -70,10 +91,64 @@ export async function runWorldBookBuildCommand(
   console.log(`- 文件夹数: ${worldBook.folder_paths.length}`);
 }
 
+export async function runWorldBookInitCommand(
+  name: string | undefined,
+  options: WorldBookInitOptions,
+): Promise<void> {
+  const templatePath = resolveTemplateCardPath();
+  if (!templatePath) {
+    throw new Error("内置 空卡.png 模板缺失：请检查项目是否完整安装");
+  }
+
+  console.log("📚 正在使用内置「空世界书」模板初始化新世界书仓库");
+  console.log(`- 模板: ${templatePath}（取其内嵌 character_book）`);
+
+  const { card } = await loadCardFromFile(templatePath);
+  const worldBook = card.data.world_book;
+  if (!worldBook) {
+    throw new Error("内置空卡模板中未找到 world_book / character_book，无法用作世界书种子");
+  }
+
+  const trimmed = name?.trim();
+  if (trimmed) {
+    worldBook.name = trimmed;
+  }
+
+  const targetDir = sanitizeFilename(
+    trimmed ?? worldBook.name ?? "空世界书",
+  );
+
+  if (existsSync(targetDir)) {
+    throw new Error(`目标目录已存在：${targetDir}（请换一个名字或先删除该目录）`);
+  }
+
+  const configPath = options.config ?? "config.yaml";
+  const repoPath = await repositorizeWorldBook(worldBook, targetDir, configPath);
+
+  console.log("✅ 世界书初始化成功");
+  console.log(`- 世界书名: ${worldBook.name ?? "(未命名)"}`);
+  console.log(`- 仓库目录: ${repoPath}`);
+  console.log(`- 配置文件: ${configPath}（不存在时使用内置默认）`);
+  console.log(`- 条目数: ${worldBook.entries.length}（含 1 条占位条目，可按需删改）`);
+  console.log(`- 规范文档: ${path.join(repoPath, "docs")}（已自动复制项目内置 docs/）`);
+  console.log("");
+  console.log("下一步：");
+  console.log(`  1. 阅读 ${path.join(repoPath, "docs", "README.md")} 了解 yaml 字段规范`);
+  console.log(`  2. 编辑 ${path.join(repoPath, "entries")} 下的条目文件`);
+  console.log(`  3. 运行 \`ecc world-book build ${repoPath}\` 生成最终 world_book JSON`);
+}
+
 export function registerWorldBookCommand(program: Command): void {
   const worldBook = program
     .command("world-book")
     .description("单独处理 world_book JSON（角色卡 Character Book 内容）");
+
+  worldBook
+    .command("init")
+    .description("使用内置「空世界书」模板初始化一个新的世界书仓库（种子取自 src/空卡.png）")
+    .argument("[name]", "新仓库 / 世界书名（可选，缺省时沿用模板中的「空世界书」）")
+    .option("-c, --config <file>", "配置文件路径", "config.yaml")
+    .action(runWorldBookInitCommand);
 
   worldBook
     .command("repo")

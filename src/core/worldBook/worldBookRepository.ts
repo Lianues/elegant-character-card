@@ -1,6 +1,7 @@
 import { existsSync } from "node:fs";
-import { mkdir, readFile, readdir, writeFile } from "node:fs/promises";
+import { cp, mkdir, readFile, readdir, writeFile } from "node:fs/promises";
 import path from "node:path";
+import { fileURLToPath } from "node:url";
 
 import YAML from "yaml";
 
@@ -16,6 +17,52 @@ import {
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null;
+}
+
+/**
+ * 解析项目内置 docs/ 目录路径。兼容：
+ *   - 开发模式（tsx）：当前位于 src/core/worldBook/，docs 在 src/docs
+ *   - 生产模式：当前位于 dist/core/worldBook/，docs 在 dist/docs（由 build 脚本复制）
+ */
+function resolveProjectDocsDir(): string | null {
+  const here = path.dirname(fileURLToPath(import.meta.url));
+  const candidate = path.resolve(here, "../../docs");
+  return existsSync(candidate) ? candidate : null;
+}
+
+/**
+ * 把项目内置的世界书相关文档复制到独立世界书仓库的 docs/ 子目录。
+ *
+ * 复制内容（拼装而非整体拷贝，避免把"角色卡专属文档"也带进来）：
+ *   1. src/docs/worldBook/ 下的全部文件 → <repo>/docs/
+ *      （包含 README.md 与 01_世界书仓库结构总览.md）
+ *   2. src/docs/04_world_book条目.md → <repo>/docs/02_world_book条目.md
+ *      （与角色卡仓库共享同一份 entry 字段规范，避免双份维护）
+ *
+ * 已存在的同名文件会被覆盖，保持文档与项目版本同步。
+ */
+export async function copyWorldBookDocsTo(repoDir: string): Promise<boolean> {
+  const sourceDocsDir = resolveProjectDocsDir();
+  if (!sourceDocsDir) {
+    return false;
+  }
+
+  const targetDocsDir = path.join(repoDir, "docs");
+  await mkdir(targetDocsDir, { recursive: true });
+
+  const worldBookDocsDir = path.join(sourceDocsDir, "worldBook");
+  if (existsSync(worldBookDocsDir)) {
+    await cp(worldBookDocsDir, targetDocsDir, { recursive: true, force: true });
+  }
+
+  const sharedEntryDoc = path.join(sourceDocsDir, "04_world_book条目.md");
+  if (existsSync(sharedEntryDoc)) {
+    await cp(sharedEntryDoc, path.join(targetDocsDir, "02_world_book条目.md"), {
+      force: true,
+    });
+  }
+
+  return true;
 }
 
 function normalizePathChain(rawPath: unknown): string {
@@ -209,6 +256,9 @@ export async function repositorizeWorldBook(
   const entriesConfig = await getWorldBookEntriesConfig(configPath);
 
   await mkdir(outputDir, { recursive: true });
+
+  // 复制项目内置的世界书规范文档到 <repo>/docs/
+  await copyWorldBookDocsTo(outputDir);
 
   const entriesPath = path.join(outputDir, "entries");
   await mkdir(entriesPath, { recursive: true });

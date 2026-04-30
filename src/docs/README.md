@@ -12,6 +12,8 @@
 | [`03_message目录.md`](./03_message目录.md) | `message/*.md`（开场白与备选问候）的命名与排序规则 |
 | [`04_world_book条目.md`](./04_world_book条目.md) | `world_book/entries/*.yaml` 每个世界书条目的所有字段 |
 
+> 如果你在使用 **独立世界书仓库**（由 `ecc world-book init` / `ecc world-book repo` 生成），请看 [`worldBook/README.md`](./worldBook/README.md)。条目字段规范（04）在两种语境下完全通用，独立世界书仓库会自动复用同一份文档。
+
 ## 设计原则（重要）
 
 1. **字段去冗余**：YAML 中只保留"原版酒馆角色卡里真实存在的字段"。所有 V3 schema 给可选字段填的 `null` 默认值（`nickname / source / creation_date / ...`）都不会出现在 YAML。
