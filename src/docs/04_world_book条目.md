@@ -80,7 +80,7 @@ world_book/entries/
 
 ### 3.3 `position`
 
-| 值 | 含义 | 数字编码 | 顶层 `position` 字符串（V2 兼容） |
+| 值 | 含义 | 数字编码（原生格式） | `--character-book` 时顶层 `position`（V2 兼容） |
 |---|---|---|---|
 | `beforeChar` | 角色定义之前 | `0` | `before_char` |
 | `afterChar` | 角色定义之后 | `1` | `after_char` |
@@ -91,7 +91,7 @@ world_book/entries/
 | `afterEm` | 示例消息之后 | `6` | `after_char` |
 | `outlet` | Outlet 插槽 | `7` | `after_char` |
 
-> **重要规范**：SillyTavern V2 角色卡顶层 `position` 字段**只允许 `before_char` / `after_char`**。所有更精细的位置（at_depth / AN / EM 等）都通过 `extensions.position` 数字承载，顶层一律写为 `after_char`。本项目自动处理这个映射，你只需要在 clean yaml 里填语义化的字符串值即可。
+> **导出差异说明**：默认导出（SillyTavern 原生格式）直接使用上表的数字编码作为 `position` 字段值。`--character-book` 模式（V2 规范）下，顶层 `position` 字段**只允许 `before_char` / `after_char`**，更精细的位置通过 `extensions.position` 数字承载。两种格式本项目均自动处理，你只需在 YAML 里填语义化的字符串值即可。
 
 ### 3.4 `role`（仅 `position=fixed` 时）
 

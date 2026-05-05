@@ -18,4 +18,4 @@
 1. **字段去冗余**：YAML 中只保留"原版酒馆世界书里真实存在的字段"。schema 里给可选字段填的 `null` 默认值（`description / scan_depth / ...`）都不会出现在 YAML。
 2. **clean 字段是单一真理来源**：每个条目的 clean 字段（`position / depth / role / probability / excludeRecursion / ...`）是唯一可编辑入口，导出时自动反向生成酒馆 legacy 字段。
 3. **`other.extensions` 只存"无 clean 对应的"扩展字段**：例如 `display_index / sticky / cooldown / group_* / match_*`，避免与 clean 字段双份存储。
-4. **导出格式与酒馆原生 world_book.json 对齐**：字段顺序、命名、缩进与 SillyTavern 直接导出的世界书 JSON 一致。
+4. **默认导出格式与酒馆原生世界书完全对齐**：`ecc world-book build` 默认输出 SillyTavern 原生格式（`entries` 为对象、camelCase、扁平 41 字段），字段顺序、命名、缩进与酒馆「文件 → 导出」一致，可直接导入。需要嵌入角色卡时使用 `--character-book` 切换为 V2 规范格式。

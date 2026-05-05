@@ -251,6 +251,124 @@ function cleanEntryToLegacy(entry: AnyRecord, displayIndex: number): AnyRecord {
 }
 
 /**
+ * 将 clean 格式的单条 entry 转为 SillyTavern 原生世界书格式（独立世界书导入用）。
+ *
+ * 与 cleanEntryToLegacy（用于角色卡内嵌 character_book）的区别：
+ * - 所有字段扁平化，无 extensions 子对象
+ * - 字段名使用 camelCase（uid / key / keysecondary / order / disable 等）
+ * - position 为数字（0-7）而非字符串
+ * - 使用 disable 而非 enabled（逻辑反转）
+ *
+ * 字段顺序严格对齐 SillyTavern 实际导出（File → Export）。
+ */
+function cleanEntryToSillyTavernNative(entry: AnyRecord, displayIndex: number): AnyRecord {
+  const other = isRecord(entry.other) ? entry.other : {};
+  const sourceExt = isRecord(other.extensions) ? other.extensions : {};
+
+  const positionStr = typeof entry.position === "string" ? entry.position : "beforeChar";
+  const positionNum = POSITION_STRING_TO_NUM[positionStr] ?? 0;
+
+  const selectiveLogicStr =
+    typeof entry.selectiveLogic === "string" ? entry.selectiveLogic : "andAny";
+  const selectiveLogicNum = SELECTIVE_LOGIC_STRING_TO_NUM[selectiveLogicStr] ?? 0;
+
+  const roleStr = typeof entry.role === "string" ? entry.role : null;
+  const roleNum =
+    roleStr && roleStr in ROLE_STRING_TO_NUM
+      ? ROLE_STRING_TO_NUM[roleStr]
+      : pickNum(sourceExt.role, 0);
+
+  const idValue = typeof entry.index === "number" ? entry.index : 0;
+  const depthValue = typeof entry.depth === "number" ? entry.depth : 4;
+  const probabilityValue = typeof entry.probability === "number" ? entry.probability : 100;
+  const orderValue = typeof entry.order === "number" ? entry.order : 100;
+
+  // 严格按 SillyTavern 原生导出的字段顺序构建
+  return {
+    uid: idValue,
+    key: Array.isArray(entry.key) ? entry.key : [],
+    keysecondary: Array.isArray(entry.secondaryKey) ? entry.secondaryKey : [],
+    comment: typeof entry.name === "string" ? entry.name : "",
+    content: typeof entry.content === "string" ? entry.content : "",
+    constant: entry.activationMode === "always",
+    vectorized:
+      entry.activationMode === "vector"
+        ? true
+        : pickBool(sourceExt.vectorized as boolean | undefined, false),
+    selective: typeof other.selective === "boolean" ? other.selective : true,
+    selectiveLogic: selectiveLogicNum,
+    addMemo: true,
+    order: orderValue,
+    position: positionNum,
+    disable: entry.enabled === false,
+    excludeRecursion: pickBool(
+      sourceExt.exclude_recursion as boolean | undefined,
+      Boolean(entry.excludeRecursion),
+    ),
+    preventRecursion: pickBool(
+      sourceExt.prevent_recursion as boolean | undefined,
+      Boolean(entry.preventRecursion),
+    ),
+    matchPersonaDescription: pickBool(sourceExt.match_persona_description as boolean | undefined, false),
+    matchCharacterDescription: pickBool(sourceExt.match_character_description as boolean | undefined, false),
+    matchCharacterPersonality: pickBool(sourceExt.match_character_personality as boolean | undefined, false),
+    matchCharacterDepthPrompt: pickBool(sourceExt.match_character_depth_prompt as boolean | undefined, false),
+    matchScenario: pickBool(sourceExt.match_scenario as boolean | undefined, false),
+    matchCreatorNotes: pickBool(sourceExt.match_creator_notes as boolean | undefined, false),
+    delayUntilRecursion: pickBool(
+      (sourceExt.delay_until_recursion ?? sourceExt.delayUntilRecursion) as boolean | undefined,
+      false,
+    ),
+    probability: probabilityValue,
+    useProbability: pickBool(sourceExt.useProbability as boolean | undefined, true),
+    depth: depthValue,
+    group: pickStr(sourceExt.group, ""),
+    groupOverride: pickBool(
+      (sourceExt.group_override ?? sourceExt.groupOverride) as boolean | undefined,
+      false,
+    ),
+    groupWeight: pickNum(sourceExt.group_weight ?? sourceExt.groupWeight, 100),
+    scanDepth: pickNumOrNull(sourceExt.scan_depth, null),
+    caseSensitive: entry.caseSensitive ?? null,
+    matchWholeWords: pickBoolOrNull(sourceExt.match_whole_words, null),
+    useGroupScoring:
+      sourceExt.use_group_scoring ?? sourceExt.useGroupScoring ?? null,
+    automationId: pickStr(sourceExt.automation_id ?? sourceExt.automationId, ""),
+    role: roleNum,
+    sticky: pickNum(sourceExt.sticky, 0),
+    cooldown: pickNum(sourceExt.cooldown, 0),
+    delay: pickNum(sourceExt.delay, 0),
+    displayIndex: pickNum(sourceExt.display_index, displayIndex),
+    ignoreBudget: pickBool(sourceExt.ignore_budget as boolean | undefined, false),
+    outletName: pickStr(sourceExt.outlet_name, ""),
+    triggers: Array.isArray(sourceExt.triggers) ? sourceExt.triggers : [],
+  };
+}
+
+/**
+ * world_book → SillyTavern 原生世界书 JSON（用于独立世界书导入）。
+ *
+ * 与 worldBookToCharacterBook（用于角色卡内嵌）的区别：
+ * - entries 为对象（以 UID 字符串为键），非数组
+ * - 条目字段完全扁平化，无 extensions 子对象
+ * - 字段名使用酒馆原生 camelCase 风格
+ */
+export function worldBookToSillyTavernNative(worldBook: AnyRecord): AnyRecord {
+  const entries = Array.isArray(worldBook.entries)
+    ? worldBook.entries.filter((e): e is AnyRecord => isRecord(e))
+    : [];
+
+  const entriesObj: AnyRecord = {};
+  for (let idx = 0; idx < entries.length; idx += 1) {
+    const native = cleanEntryToSillyTavernNative(entries[idx], idx);
+    const uid = String(native.uid ?? idx);
+    entriesObj[uid] = native;
+  }
+
+  return { entries: entriesObj };
+}
+
+/**
  * world_book → character_book，字段顺序：entries, name
  * （仅在源数据中存在的可选字段才追加，保持与 SillyTavern 实际导出一致的简洁性）
  */

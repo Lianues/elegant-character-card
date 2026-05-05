@@ -7,7 +7,10 @@ import { Command } from "commander";
 
 import { loadCardFromFile } from "../../core/card/loadCard.js";
 import { sanitizeFilename } from "../../core/repository/fieldHandlers.js";
-import { worldBookToCharacterBook } from "../../core/transforms/tavernExport.js";
+import {
+  worldBookToCharacterBook,
+  worldBookToSillyTavernNative,
+} from "../../core/transforms/tavernExport.js";
 import {
   rebuildWorldBook,
   repositorizeWorldBook,
@@ -23,6 +26,7 @@ export interface WorldBookBuildOptions {
   output?: string;
   config?: string;
   internal?: boolean;
+  characterBook?: boolean;
 }
 
 export interface WorldBookInitOptions {
@@ -86,11 +90,17 @@ export async function runWorldBookBuildCommand(
   const defaultName = path.basename(path.resolve(repoPath)) || "world_book";
   const outputFile = options.output ?? `${defaultName}.json`;
   const useTavernFormat = !options.internal;
-  // 与 `ecc build` 保持一致：默认输出酒馆兼容的 character_book 格式（复用同一转换器），
-  // 仅当 --internal 时才直出项目内部 V3 world_book 结构。
-  const exportPayload = useTavernFormat
-    ? worldBookToCharacterBook(worldBook as unknown as Record<string, unknown>)
-    : worldBook;
+  const useCharacterBookFormat = options.characterBook === true;
+  // 默认输出 SillyTavern 原生世界书格式（entries 为对象、camelCase、扁平结构），
+  // 可被酒馆直接通过「导入世界书」功能识别。
+  // --character-book 输出角色卡内嵌的 character_book V2 格式（entries 为数组、
+  //   snake_case、extensions 嵌套），用于手动嵌入角色卡 JSON。
+  // --internal 直出项目内部 V3 world_book 结构。
+  const exportPayload = !useTavernFormat
+    ? worldBook
+    : useCharacterBookFormat
+      ? worldBookToCharacterBook(worldBook as unknown as Record<string, unknown>)
+      : worldBookToSillyTavernNative(worldBook as unknown as Record<string, unknown>);
   // 酒馆原生导出使用 4 空格缩进；项目内部 V3 保持 2 空格
   const exportJson = JSON.stringify(exportPayload, null, useTavernFormat ? 4 : 2);
   await writeFile(outputFile, `${exportJson}\n`, "utf-8");
@@ -99,7 +109,15 @@ export async function runWorldBookBuildCommand(
   console.log(`- 输出文件: ${outputFile}`);
   console.log(`- 条目数: ${worldBook.entries.length}`);
   console.log(`- 文件夹数: ${worldBook.folder_paths.length}`);
-  console.log(`- 格式: ${useTavernFormat ? "SillyTavern 兼容（character_book）" : "项目内部 V3"}`);
+  console.log(
+    `- 格式: ${
+      !useTavernFormat
+        ? "项目内部 V3"
+        : useCharacterBookFormat
+          ? "character_book V2（角色卡内嵌用）"
+          : "SillyTavern 原生世界书（可直接导入酒馆）"
+    }`,
+  );
 }
 
 export async function runWorldBookInitCommand(
@@ -171,10 +189,11 @@ export function registerWorldBookCommand(program: Command): void {
 
   worldBook
     .command("build")
-    .description("从世界书仓库目录重建为 world_book JSON（默认输出 SillyTavern 兼容格式；省略仓库参数则使用当前目录）")
+    .description("从世界书仓库目录重建为 world_book JSON（默认输出 SillyTavern 原生世界书格式；省略仓库参数则使用当前目录）")
     .argument("[repo]", "世界书仓库目录（默认当前目录 .）", ".")
     .option("-o, --output <file>", "输出 JSON 文件")
     .option("-c, --config <file>", "配置文件路径", "config.yaml")
     .option("--internal", "输出本项目内部 V3 格式（不做酒馆兼容转换）")
+    .option("--character-book", "输出 character_book V2 格式（用于手动嵌入角色卡 JSON）")
     .action(runWorldBookBuildCommand);
 }
